@@ -330,12 +330,12 @@ header { display: flex; justify-content: space-between; align-items: center; mar
 <!-- CHARACTER CARD — level, fitness class, attrs -->
 <div class="char-card">
   <div class="char-top">
-    <div class="avatar" id="avatarRing"><span id="avatarEmoji">🔱</span></div>
+    <div class="avatar" id="avatarRing"><span id="avatarEmoji">⚪</span></div>
     <div class="char-info">
       <div class="char-name-row">
         <div class="level-pill" id="levelBadge">LVL 8</div>
       </div>
-      <div class="fitness-class" id="fitnessClass">Loading...</div>
+      <div class="fitness-class" id="fitnessClass">Import your data to unlock</div>
       <div class="xp-row"><span class="xp-label">XP</span><span class="xp-label" id="xpLabel">0 / 100</span></div>
       <div class="xp-bar"><div class="xp-fill" id="xpFill" style="width:0%"></div></div>
       <div class="xp-next" id="xpTicker">Next level: 100 xp away</div>
@@ -1119,19 +1119,30 @@ function runImport(){
     state.liftLog=lifts;state.runLog=runs;
     state.totalVolumeLbs=lifts.reduce((s,e)=>s+(e.totalVol||e.weight*e.sets*e.reps),0);
     state.totalMiles=runs.reduce((s,e)=>s+(e.dist||0),0);
+    // Sessions = unique dates, not entry count
     state.liftSessions=new Set(lifts.map(e=>e.date)).size;
-    state.runSessions=runs.length;state.totalSessions=state.liftSessions+state.runSessions;
-    recalcAttrs();const totalXP=lifts.reduce((s,e)=>s+e.xp,0)+runs.reduce((s,e)=>s+e.xp,0);
+    state.runSessions=new Set(runs.map(e=>e.date)).size;
+    state.totalSessions=new Set([...lifts.map(e=>e.date),...runs.map(e=>e.date)]).size;
+    recalcAttrs();
+    const totalXP=lifts.reduce((s,e)=>s+e.xp,0)+runs.reduce((s,e)=>s+e.xp,0);
     state.level=1;state.xp=totalXP;while(state.xp>=xpForLevel(state.level)){state.xp-=xpForLevel(state.level);state.level++;}
-    showToast('Replaced — '+lifts.length+' lifts, '+runs.length+' runs');
+    showToast('Replaced — '+state.liftSessions+' lift days, '+state.runSessions+' run days');
   }else{
-    const el=new Set(state.liftLog.map(e=>e.date+'|'+e.exercise));const er=new Set(state.runLog.map(e=>e.date+'|'+e.type+'|'+e.dist));let al=0,ar=0;
-    lifts.forEach(e=>{const k=e.date+'|'+e.exercise;if(!el.has(k)){state.liftLog.push(e);state.totalVolumeLbs+=(e.totalVol||e.weight*e.sets*e.reps);state.liftSessions++;state.totalSessions++;addXP(e.xp);el.add(k);al++;}});
-    runs.forEach(e=>{const k=e.date+'|'+e.type+'|'+e.dist;if(!er.has(k)){state.runLog.push(e);state.totalMiles+=e.dist;state.runSessions++;state.totalSessions++;addXP(e.xp);er.add(k);ar++;}});
-    state.liftLog.sort((a,b)=>b.date.localeCompare(a.date));state.runLog.sort((a,b)=>b.date.localeCompare(a.date));recalcAttrs();
+    const el=new Set(state.liftLog.map(e=>e.date+'|'+e.exercise));
+    const er=new Set(state.runLog.map(e=>e.date+'|'+e.type+'|'+e.dist));
+    let al=0,ar=0;
+    lifts.forEach(e=>{const k=e.date+'|'+e.exercise;if(!el.has(k)){state.liftLog.push(e);state.totalVolumeLbs+=(e.totalVol||e.weight*e.sets*e.reps);addXP(e.xp);el.add(k);al++;}});
+    runs.forEach(e=>{const k=e.date+'|'+e.type+'|'+e.dist;if(!er.has(k)){state.runLog.push(e);state.totalMiles+=e.dist;addXP(e.xp);er.add(k);ar++;}});
+    // Recount sessions from unique dates after merge
+    state.liftSessions=new Set(state.liftLog.map(e=>e.date)).size;
+    state.runSessions=new Set(state.runLog.map(e=>e.date)).size;
+    state.totalSessions=new Set([...state.liftLog.map(e=>e.date),...state.runLog.map(e=>e.date)]).size;
+    state.liftLog.sort((a,b)=>b.date.localeCompare(a.date));
+    state.runLog.sort((a,b)=>b.date.localeCompare(a.date));
+    recalcAttrs();
     showToast('Merged +'+al+' lifts, +'+ar+' runs');
   }
-  checkAchievements();save();renderAll();closeImportModal();
+  checkAchievements(); recalcAttrs(); save(); renderAll(); closeImportModal();
 }
 
 // ─── NAME EDITING ─────────────────────────────────────────────────────────────
