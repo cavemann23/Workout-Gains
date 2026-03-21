@@ -767,18 +767,18 @@ function renderRecords() {
     const withE1rm = pool.map(e=>({...e, e1rm: e.weight*(1+(e.reps||1)/30)}));
     const best = withE1rm.reduce((a,b)=>a.e1rm>b.e1rm?a:b);
 
-    // Progressive overload only shown in 30-day mode
+    // Progressive overload only shown in 30-day mode — show last session top weight
     let olBadge = '';
     if (recordMode === '30d') {
       const sorted = [...allEntries].sort((a,b)=>a.date.localeCompare(b.date));
-      const last2 = sorted.slice(-2);
-      if (last2.length === 2) {
-        const prevE1 = last2[0].weight*(1+(last2[0].reps||1)/30);
-        const currE1 = last2[1].weight*(1+(last2[1].reps||1)/30);
-        const diff = currE1 - prevE1;
-        if (diff > 1) olBadge = `<div class="overload-badge up">↑ ${diff.toFixed(0)} lbs E1RM</div>`;
-        else if (diff < -1) olBadge = `<div class="overload-badge down">↓ ${Math.abs(diff).toFixed(0)} lbs E1RM</div>`;
-        else olBadge = `<div class="overload-badge flat">→ Maintained</div>`;
+      const last = sorted[sorted.length-1];
+      const prev = sorted[sorted.length-2];
+      if (last) {
+        const lastE1 = last.weight*(1+(last.reps||1)/30);
+        const prevE1 = prev ? prev.weight*(1+(prev.reps||1)/30) : null;
+        const arrow = prevE1 === null ? '' : lastE1 > prevE1+1 ? '↑ ' : lastE1 < prevE1-1 ? '↓ ' : '→ ';
+        const color = prevE1 === null ? 'var(--dim2)' : lastE1 > prevE1+1 ? 'var(--green)' : lastE1 < prevE1-1 ? 'var(--red)' : 'var(--dim2)';
+        olBadge = `<div style="font-family:var(--mono);font-size:9px;color:${color};margin-top:3px">${arrow}Last: ${last.weight}lbs×${last.reps} (${last.date.slice(5)})</div>`;
       }
     }
 
