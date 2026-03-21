@@ -998,116 +998,165 @@ const ACHIEVEMENTS = [
 ];
 
 // ─── FITNESS CLASS ────────────────────────────────────────────────────────────
-function getFitnessClass(attrs) {
-  const {str,end,spd,rec} = attrs;
-  const avg = (str+end+spd+rec)/4;
-  const spread = Math.max(str,end,spd,rec) - Math.min(str,end,spd,rec);
+// Classification is based on SESSION MIX first, then attr profile.
+// liftRatio = lift sessions / total sessions
+// runRatio  = run sessions  / total sessions
+//
+// Powerlifter:       liftRatio >= 85%  (STR-dominant lifting focus)
+// Bodybuilder:       liftRatio >= 75%  AND str+rec both high (volume+consistency)
+// Hybrid Athlete:    liftRatio 40–60%  AND runRatio 40–60% (true 50/50 mix)
+// Runner:            runRatio  >= 75%  AND endDom (base mileage focused)
+// Sprinter:          runRatio  >= 75%  AND spdDom (intervals/tempo focused)
+// Endurance Athlete: runRatio  >= 85%  (all-in on running)
+// Developing:        not enough data yet
 
-  // Use session ratio as primary hybrid signal
-  const totalSess = (state.liftSessions||0) + (state.runSessions||0);
-  const runRatio = totalSess > 0 ? state.runSessions / totalSess : 0;
-  const isSessionBalanced = runRatio >= 0.28 && runRatio <= 0.72;
-
-  // Attr dominance
-  const strDom = str > avg*1.2;
-  const endDom = end > avg*1.2;
-  const spdDom = spd > avg*1.2;
-  const recDom = rec > avg*1.2;
-  const attrBalanced = spread < 20;
-
-  // Hybrid: balanced session mix AND reasonable across attrs
-  if (isSessionBalanced && attrBalanced && avg > 15)
-    return {name:'Hybrid Athlete', emoji:'🔱', desc:'Balanced strength & conditioning'};
-  if (isSessionBalanced && avg > 15)
-    return {name:'Hybrid Athlete', emoji:'🔱', desc:'Balanced strength & conditioning'};
-
-  // Running-dominant
-  if (runRatio > 0.72) {
-    if (spdDom) return {name:'Sprinter', emoji:'⚡', desc:'Speed & intensity focused'};
-    return {name:'Endurance Athlete', emoji:'🎽', desc:'Long distance specialist'};
-  }
-
-  // Lifting-dominant
-  if (runRatio < 0.28) {
-    if (strDom && recDom) return {name:'Powerlifter', emoji:'🏋️', desc:'Strength & consistency driven'};
-    if (strDom)           return {name:'Bodybuilder', emoji:'💪', desc:'High volume strength focus'};
-    return {name:'Powerlifter', emoji:'🏋️', desc:'Strength & consistency driven'};
-  }
-
-  // Mixed but attr-skewed
-  if (spdDom) return {name:'Sprinter', emoji:'⚡', desc:'Speed & intensity focused'};
-  if (endDom) return {name:'Runner',   emoji:'🏃', desc:'Cardiovascular specialist'};
-  if (strDom) return {name:'Powerlifter', emoji:'🏋️', desc:'Strength focused'};
-  return {name:'Developing Athlete', emoji:'🌱', desc:'Building your base — keep going'};
+function getSessionRatios() {
+  const lift = state.liftSessions || 0;
+  const run  = state.runSessions  || 0;
+  const total = lift + run;
+  return {
+    lift, run, total,
+    liftRatio: total > 0 ? lift / total : 0,
+    runRatio:  total > 0 ? run  / total : 0,
+  };
 }
 
-// Returns requirements for each class — used by tooltip
+function getFitnessClass(attrs) {
+  const {str, end, spd, rec} = attrs;
+  const avg = (str + end + spd + rec) / 4;
+  const {liftRatio, runRatio, total} = getSessionRatios();
+
+  if (total < 5) return {name:'Developing Athlete', emoji:'🌱', desc:'Building your base — keep going'};
+
+  const strDom = str >= avg * 1.15;
+  const endDom = end >= avg * 1.15;
+  const spdDom = spd >= avg * 1.15;
+  const recDom = rec >= avg * 1.15;
+
+  // Pure lifting classes (≥75% lift sessions)
+  if (liftRatio >= 0.85)
+    return {name:'Powerlifter', emoji:'🏋️', desc:'Strength & consistency driven'};
+
+  if (liftRatio >= 0.75)
+    return {name:'Bodybuilder', emoji:'💪', desc:'High volume strength focus'};
+
+  // Pure running classes (≥75% run sessions)
+  if (runRatio >= 0.85)
+    return {name:'Endurance Athlete', emoji:'🎽', desc:'Long distance specialist'};
+
+  if (runRatio >= 0.75)
+    return spdDom
+      ? {name:'Sprinter',          emoji:'⚡', desc:'Speed & intensity focused'}
+      : {name:'Runner',            emoji:'🏃', desc:'Cardiovascular specialist'};
+
+  // Hybrid zone (40–60% each way)
+  if (liftRatio >= 0.40 && liftRatio <= 0.60)
+    return {name:'Hybrid Athlete', emoji:'🔱', desc:'Balanced strength & conditioning'};
+
+  // Grey zones — lean one way but not enough to fully classify
+  if (liftRatio > 0.60)
+    return {name:'Strength-Biased Hybrid', emoji:'🏋️🔱', desc:'Mostly lifting with a running base'};
+
+  return {name:'Cardio-Biased Hybrid', emoji:'🏃🔱', desc:'Mostly running with a strength base'};
+}
+
+// Returns requirements for each class — drives the tooltip
 function getClassRequirements() {
-  const totalSess = (state.liftSessions||0) + (state.runSessions||0);
-  const runRatio = totalSess > 0 ? state.runSessions / totalSess : 0;
-  const {str,end,spd,rec} = state.attrs;
-  const spread = Math.max(str,end,spd,rec) - Math.min(str,end,spd,rec);
-  const avg = (str+end+spd+rec)/4;
+  const {str, end, spd, rec} = state.attrs;
+  const avg = (str + end + spd + rec) / 4;
+  const {lift, run, total, liftRatio, runRatio} = getSessionRatios();
   const current = getFitnessClass(state.attrs);
+
+  const liftPct = Math.round(liftRatio * 100);
+  const runPct  = Math.round(runRatio  * 100);
+
+  // Helpers — how many more sessions needed to shift the ratio
+  function sessionsToReachLiftRatio(target) {
+    // lift / (lift + run + x) = target  ->  x = lift/target - lift - run
+    return Math.max(0, Math.ceil(lift / target - total));
+  }
+  function sessionsToReachRunRatio(target) {
+    return Math.max(0, Math.ceil(run / target - total));
+  }
 
   const classes = [
     {
       name:'Hybrid Athlete', emoji:'🔱',
-      check: () => {
-        const isBalanced = runRatio >= 0.28 && runRatio <= 0.72;
+      check() {
         const reqs = [];
-        if (!isBalanced) {
-          const liftPct = Math.round((state.liftSessions/totalSess)*100);
-          const runPct  = Math.round((state.runSessions/totalSess)*100);
-          reqs.push(`Session mix: ${liftPct}% lift / ${runPct}% run — need 28–72% running`);
+        if (liftRatio < 0.40 || liftRatio > 0.60) {
+          if (liftRatio < 0.40) {
+            const need = sessionsToReachLiftRatio(0.40);
+            reqs.push(`Lift sessions too low (${liftPct}% — need 40–60%): ~${need} more lift sessions`);
+          } else {
+            const need = sessionsToReachRunRatio(0.40);
+            reqs.push(`Run sessions too low (${runPct}% — need 40–60%): ~${need} more runs`);
+          }
         }
-        if (avg <= 15) reqs.push(`Average attr > 15 (currently ${avg.toFixed(0)})`);
         return reqs;
       }
     },
     {
       name:'Powerlifter', emoji:'🏋️',
-      check: () => {
+      check() {
         const reqs = [];
-        if (runRatio >= 0.28) {
-          const extraLifts = Math.ceil((state.liftSessions - state.runSessions * 2.57) + 1);
-          reqs.push(`Need >72% lifting sessions (currently ${Math.round((1-runRatio)*100)}%)`);
-        }
-        const strNeeded = Math.ceil(avg * 1.2);
-        if (str < strNeeded) {
-          const volNeeded = Math.round(1_250_000 * Math.pow((strNeeded-1)/98, 2));
-          const more = Math.max(0, volNeeded - state.totalVolumeLbs);
-          reqs.push(`STR needs ${strNeeded} (${str} now) — ~${Math.ceil(more/5000)} more lift sessions`);
+        if (liftRatio < 0.85) {
+          const need = sessionsToReachLiftRatio(0.85);
+          reqs.push(`Need 85%+ lift sessions (${liftPct}% now) — ~${need} more lift sessions`);
         }
         return reqs;
       }
     },
     {
-      name:'Endurance Athlete', emoji:'🎽',
-      check: () => {
+      name:'Bodybuilder', emoji:'💪',
+      check() {
         const reqs = [];
-        if (runRatio <= 0.72) reqs.push(`Need >72% running sessions (currently ${Math.round(runRatio*100)}%)`);
-        const endNeeded = Math.ceil(avg * 1.2);
-        if (end < endNeeded) {
-          const milesNeeded = Math.round(375 * Math.pow((endNeeded-1)/98, 2));
-          const more = Math.max(0, milesNeeded - state.totalMiles);
-          reqs.push(`END needs ${endNeeded} (${end} now) — ~${Math.ceil(more/2)} more runs`);
+        if (liftRatio < 0.75) {
+          const need = sessionsToReachLiftRatio(0.75);
+          reqs.push(`Need 75%+ lift sessions (${liftPct}% now) — ~${need} more lift sessions`);
+        }
+        const strRecAvg = (str + rec) / 2;
+        if (strRecAvg < 40) reqs.push(`Raise STR & REC above 40 avg (currently ${strRecAvg.toFixed(0)})`);
+        return reqs;
+      }
+    },
+    {
+      name:'Endurance Athlete', emoji:'🎽',
+      check() {
+        const reqs = [];
+        if (runRatio < 0.85) {
+          const need = sessionsToReachRunRatio(0.85);
+          reqs.push(`Need 85%+ run sessions (${runPct}% now) — ~${need} more runs`);
         }
         return reqs;
       }
     },
     {
       name:'Sprinter', emoji:'⚡',
-      check: () => {
+      check() {
         const reqs = [];
-        const spdNeeded = Math.ceil(avg * 1.2);
+        if (runRatio < 0.75) {
+          const need = sessionsToReachRunRatio(0.75);
+          reqs.push(`Need 75%+ run sessions (${runPct}% now) — ~${need} more runs`);
+        }
+        const spdNeeded = Math.ceil(avg * 1.15);
         if (spd < spdNeeded) {
-          const hardMilesNeeded = Math.round(112 * Math.pow((spdNeeded-1)/98, 2));
-          const hardMilesCurrent = state.runLog.reduce((s,r)=>s+((r.type.includes('Interval')||r.type.includes('Tempo'))?r.dist:0),0);
-          const more = Math.max(0, hardMilesNeeded - hardMilesCurrent);
+          const hardMiles = state.runLog.reduce((s,r)=>s+((r.type.includes('Interval')||r.type.includes('Tempo'))?r.dist:0),0);
+          const milesNeeded = Math.round(112 * Math.pow((spdNeeded-1)/98,2));
+          const more = Math.max(0, milesNeeded - hardMiles);
           reqs.push(`SPD needs ${spdNeeded} (${spd} now) — ~${Math.ceil(more/1.5)} more tempo/interval runs`);
         }
-        if (runRatio <= 0.72) reqs.push(`Need >72% running sessions (currently ${Math.round(runRatio*100)}%)`);
+        return reqs;
+      }
+    },
+    {
+      name:'Runner', emoji:'🏃',
+      check() {
+        const reqs = [];
+        if (runRatio < 0.75) {
+          const need = sessionsToReachRunRatio(0.75);
+          reqs.push(`Need 75%+ run sessions (${runPct}% now) — ~${need} more runs`);
+        }
         return reqs;
       }
     },
