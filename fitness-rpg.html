@@ -416,14 +416,14 @@ header { display: flex; justify-content: space-between; align-items: center; mar
   </div>
 </div>
 <div class="records-grid" id="recordsGrid">
-  <div class="record-card"><div class="record-label">Deadlift</div><div class="record-val" id="rec-deadlift">357 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-deadlift"></div><div id="ol-deadlift"></div></div>
-  <div class="record-card"><div class="record-label">Back Squat</div><div class="record-val" id="rec-squat">252 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-squat"></div><div id="ol-squat"></div></div>
-  <div class="record-card"><div class="record-label">Bench Press</div><div class="record-val" id="rec-bench">255 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-bench"></div><div id="ol-bench"></div></div>
-  <div class="record-card"><div class="record-label">OHP</div><div class="record-val" id="rec-ohp">141 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-ohp"></div><div id="ol-ohp"></div></div>
-  <div class="record-card"><div class="record-label">Barbell Row</div><div class="record-val" id="rec-row">191 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-row"></div><div id="ol-row"></div></div>
-  <div class="record-card"><div class="record-label">Landmine Row</div><div class="record-val" id="rec-landmine">233 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-landmine"></div><div id="ol-landmine"></div></div>
-  <div class="record-card"><div class="record-label">Incline DB Press</div><div class="record-val" id="rec-inclinedb">93 <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-inclinedb"></div><div id="ol-inclinedb"></div></div>
-  <div class="record-card"><div class="record-label">Miles Run</div><div class="record-val">64.7 <span class="record-unit">mi</span></div></div>
+  <div class="record-card"><div class="record-label">Deadlift</div><div class="record-val" id="rec-deadlift">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-deadlift"></div><div id="ol-deadlift"></div></div>
+  <div class="record-card"><div class="record-label">Back Squat</div><div class="record-val" id="rec-squat">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-squat"></div><div id="ol-squat"></div></div>
+  <div class="record-card"><div class="record-label">Bench Press</div><div class="record-val" id="rec-bench">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-bench"></div><div id="ol-bench"></div></div>
+  <div class="record-card"><div class="record-label">OHP</div><div class="record-val" id="rec-ohp">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-ohp"></div><div id="ol-ohp"></div></div>
+  <div class="record-card"><div class="record-label">Barbell Row</div><div class="record-val" id="rec-row">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-row"></div><div id="ol-row"></div></div>
+  <div class="record-card"><div class="record-label">Landmine Row</div><div class="record-val" id="rec-landmine">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-landmine"></div><div id="ol-landmine"></div></div>
+  <div class="record-card"><div class="record-label">Incline DB Press</div><div class="record-val" id="rec-inclinedb">— <span class="record-unit">lbs</span></div><div class="record-rel" id="rel-inclinedb"></div><div id="ol-inclinedb"></div></div>
+  <div class="record-card"><div class="record-label">Miles Run</div><div class="record-val" id="rec-miles">— <span class="record-unit">mi</span></div></div>
 </div>
 
 <!-- LOG PANELS -->
@@ -435,7 +435,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
       <div class="field-row">
         <div class="field"><label>Date</label><input type="date" id="liftDate" onchange="onLiftDateChange()"></div>
         <div class="field"><label>Body Weight (lbs)</label>
-          <input type="number" id="liftBW" placeholder="192.0" step="0.1" min="50" max="400" oninput="updateSetSummary()" style="border-color:var(--border2)">
+          <input type="number" id="liftBW" placeholder="0.0" step="0.1" min="50" max="400" oninput="updateSetSummary()" style="border-color:var(--border2)">
         </div>
       </div>
       <div class="field"><label>Location</label>
@@ -447,6 +447,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
       <div class="field">
         <label>Exercise</label>
         <select id="liftExercise" onchange="resetSets()">
+          <option value="" data-pattern="" disabled selected>— Choose exercise —</option>
           <option value="Back Squat" data-pattern="Squat">Back Squat</option>
           <option value="Deadlift" data-pattern="Hinge">Deadlift</option>
           <option value="Bench Press" data-pattern="Horizontal Push">Bench Press</option>
@@ -482,6 +483,7 @@ header { display: flex; justify-content: space-between; align-items: center; mar
       <div class="field"><label>Date</label><input type="date" id="runDate"></div>
       <div class="field"><label>Type</label>
         <select id="runType" onchange="toggleIntervalFields()">
+          <option value="" disabled selected>— Choose run type —</option>
           <option value="Easy">Easy</option>
           <option value="Tempo">Tempo</option>
           <option value="Interval">Interval</option>
@@ -683,9 +685,7 @@ function onLiftDateChange() {
     bwInput.value = existing.weight;
     bwInput.style.borderColor = 'var(--teal)';
   } else {
-    // Prefill with most recent logged weight as a convenience
-    const latest = (state.bodyWeightLog||[]).slice(-1)[0];
-    bwInput.value = latest ? latest.weight : '';
+    bwInput.value = '';
     bwInput.style.borderColor = 'var(--border2)';
   }
   updateSetSummary();
@@ -720,16 +720,12 @@ function getBWAvg7() {
 }
 
 function renderBodyWeight() {
-  // No standalone BW card anymore — BW is logged inline in the lift panel
-  // Prefill the BW field with today's or most recent logged weight
   const today = todayStr();
   const log = state.bodyWeightLog || [];
   const todayEntry = log.find(e => e.date === today);
-  const latest = log.slice(-1)[0];
   const bwInput = document.getElementById('liftBW');
   if (bwInput && !bwInput.value) {
     if (todayEntry) { bwInput.value = todayEntry.weight; bwInput.style.borderColor = 'var(--teal)'; }
-    else if (latest) { bwInput.value = latest.weight; bwInput.style.borderColor = 'var(--border2)'; }
   }
 }
 
@@ -795,6 +791,25 @@ function renderRecords() {
     if (relEl) relEl.textContent = bw ? (best.e1rm/bw).toFixed(2)+'× BW' : '';
     const olEl = document.getElementById(cfg.olId);
     if (olEl) olEl.innerHTML = olBadge;
+  }
+
+  // Miles run — always from state
+  const milesEl = document.getElementById('rec-miles');
+  if (milesEl) milesEl.innerHTML = state.totalMiles > 0
+    ? state.totalMiles.toFixed(1)+' <span class="record-unit">mi</span>'
+    : '— <span class="record-unit">mi</span>';
+
+  // Reset any lift records to dash if no data
+  for (const cfg of Object.values(TRACKED_LIFTS)) {
+    const allEntries = state.liftLog.filter(e => cfg.keys.some(k=>e.exercise.toLowerCase().includes(k.toLowerCase())) && e.weight>0);
+    if (!allEntries.length) {
+      const el = document.getElementById(cfg.id);
+      if (el) el.innerHTML = '— <span class="record-unit">lbs</span>';
+      const relEl = document.getElementById(cfg.relId);
+      if (relEl) relEl.textContent = '';
+      const olEl = document.getElementById(cfg.olId);
+      if (olEl) olEl.innerHTML = '';
+    }
   }
 }
 
@@ -900,6 +915,7 @@ function updateRunSummary() {
   const time = parseFloat(document.getElementById('runTime').value) || 0;
   const hr   = parseFloat(document.getElementById('runHR').value) || 0;
   const type = document.getElementById('runType').value;
+  if (!type) { showToast('Choose a run type first'); return; }
   const sumEl = document.getElementById('runSummary');
 
   if (!dist) { sumEl.style.display = 'none'; return; }
@@ -954,6 +970,7 @@ function updateRunSummary() {
 function logLift() {
   const sel = document.getElementById('liftExercise');
   const exercise = sel.value, pattern = sel.options[sel.selectedIndex].dataset.pattern||'';
+  if (!exercise) { showToast('Choose an exercise first'); return; }
   const location = document.getElementById('liftLocation').value;
   const rpe = parseFloat(document.getElementById('liftRPE').value)||null;
   const dateVal = document.getElementById('liftDate').value||todayStr();
