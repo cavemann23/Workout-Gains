@@ -12,7 +12,7 @@
   --surface3: #252b3d;
   --border: #2a3045;
   --border2: #333d57;
-  --accent: #ff6b35;
+  --accent: #f5c518;
   --accent2: #ff8c5a;
   --teal: #00c9a7;
   --blue: #4d9fff;
@@ -231,9 +231,10 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
 .pace-slow { background: rgba(107,116,153,0.15); color: var(--dim2); }
 
 /* ── LOG FEED ── */
-.log-feed { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.log-feed { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
 .log-feed::-webkit-scrollbar { width: 2px; }
 .log-feed::-webkit-scrollbar-thumb { background: var(--border2); }
+.feed-expand { animation: slideIn 0.15s ease; }
 .log-entry { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px; background: var(--surface2); border-radius: 4px; border-left: 2px solid var(--border2); font-family: var(--mono); font-size: 10px; animation: slideIn 0.25s ease both; }
 .log-entry:hover { border-left-color: var(--accent); }
 .entry-main { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 74%; }
@@ -481,7 +482,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
     <div class="char-info">
       <div class="char-name-row">
         <div class="level-pill" id="levelBadge">LVL 1</div>
-        <div id="prestigeBadge" style="display:none;font-family:var(--mono);font-size:10px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#ff6b35);color:#000;padding:2px 8px;border-radius:20px;flex-shrink:0"></div>
+        <div id="prestigeBadge" style="display:none;font-family:var(--mono);font-size:10px;font-weight:700;background:linear-gradient(135deg,#f5c518,#e6b800);color:#000;padding:2px 8px;border-radius:20px;flex-shrink:0"></div>
       </div>
       <div class="fitness-class" id="fitnessClass" onclick="showClassTooltip(event)" style="cursor:pointer" title="Tap to see class requirements">Import your data to unlock</div>
       <!-- Class requirements tooltip -->
@@ -490,7 +491,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       <!-- XP bar: base progress + optional prestige overlay -->
       <div class="xp-bar" style="position:relative">
         <div class="xp-fill" id="xpFill" style="width:0%"></div>
-        <div id="prestigeFill" style="position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#f59e0b88,#ff6b3588);border-radius:3px;width:0%;transition:width 0.5s;pointer-events:none"></div>
+        <div id="prestigeFill" style="position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#f5c51888,#e6b80088);border-radius:3px;width:0%;transition:width 0.5s;pointer-events:none"></div>
       </div>
       <div style="display:flex;justify-content:space-between">
         <div class="xp-next" id="xpTicker">Next level: 100 xp away</div>
@@ -663,8 +664,11 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
         </div>
       </div>
       <div class="field">
-        <label>Exercise</label>
-        <select id="liftExercise" onchange="resetSets()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label style="margin-bottom:0">Exercise</label>
+          <button onclick="startAddExercise()" style="background:none;border:none;font-family:var(--mono);font-size:9px;color:var(--accent);cursor:pointer;letter-spacing:1px;padding:0">+ ADD EXERCISE</button>
+        </div>
+        <select id="liftExercise" onchange="resetSets();renderExerciseHistory()">
           <option value="" data-pattern="" disabled selected>— Choose exercise —</option>
           <option value="Back Squat" data-pattern="Squat">Back Squat</option>
           <option value="Deadlift" data-pattern="Hinge">Deadlift</option>
@@ -682,7 +686,45 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
           <option value="Bulgarian Split Squats" data-pattern="Single-leg">Bulgarian Splits</option>
           <option value="Other" data-pattern="">Other</option>
         </select>
+        <!-- Add exercise inline form -->
+        <div id="addExerciseForm" style="display:none;margin-top:8px;background:var(--surface2);border:1px solid var(--accent);border-radius:7px;padding:10px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">New Exercise</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+            <div class="field" style="margin-bottom:0">
+              <label>Name</label>
+              <input type="text" id="newExName" placeholder="e.g. Cable Row" maxlength="40" style="width:100%" onkeydown="if(event.key==='Enter')saveNewExercise()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>Pattern</label>
+              <select id="newExPattern">
+                <option value="">— Optional —</option>
+                <option value="Horizontal Push">Horizontal Push</option>
+                <option value="Vertical Push">Vertical Push</option>
+                <option value="Horizontal Pull">Horizontal Pull</option>
+                <option value="Vertical Pull">Vertical Pull</option>
+                <option value="Squat">Squat</option>
+                <option value="Hinge">Hinge</option>
+                <option value="Single-leg">Single-leg</option>
+                <option value="Core">Core</option>
+                <option value="Accessory">Accessory</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+            <label style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--dim2);cursor:pointer">
+              <input type="checkbox" id="newExBW" style="accent-color:var(--accent)"> Bodyweight exercise
+            </label>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-log" onclick="saveNewExercise()" style="flex:1;padding:8px">Save</button>
+            <button class="btn-cancel" onclick="cancelAddExercise()" style="flex:1">Cancel</button>
+          </div>
+        </div>
       </div>
+
+      <!-- Exercise history reference — appears after selecting an exercise -->
+      <div id="exerciseHistory" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px"></div>
+
       <div style="display:flex;justify-content:space-between;align-items:center">
         <label style="font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--dim2);text-transform:uppercase">Working Sets</label>
         <span style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1px">weight × reps · RPE</span>
@@ -692,6 +734,27 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       <div class="set-summary" id="setSummary">Add at least one working set above</div>
     </div>
     <button class="btn-log" onclick="logLift()">Log Lift +XP</button>
+
+    <!-- ACCESSORY XP -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text2)">💪 Accessory Sets</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--dim2);margin-top:2px">7 XP per set · cables, machines, isolation</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:800;color:var(--accent)" id="accessoryXPPreview">0 XP</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="adjustAccessorySets(-1)" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);width:36px;height:36px;border-radius:6px;font-size:18px;cursor:pointer;flex-shrink:0">−</button>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:var(--text3)" id="accessorySetsCount">0</div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--dim2)">sets</div>
+        </div>
+        <button onclick="adjustAccessorySets(1)" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);width:36px;height:36px;border-radius:6px;font-size:18px;cursor:pointer;flex-shrink:0">+</button>
+      </div>
+      <button class="btn-log" onclick="logAccessorySets()" style="width:100%;margin-top:10px;padding:10px" id="accessoryLogBtn" disabled>Log Accessory Sets</button>
+    </div>
+
     <div class="log-feed" id="liftFeed"></div>
   </div>
 
@@ -719,6 +782,10 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
         <div class="field"><label>Avg HR (opt.)</label><input type="number" id="runHR" placeholder="155" min="0" oninput="updateRunSummary()"></div>
         <div class="field"><label>RPE (opt.)</label><input type="number" id="runRPE" placeholder="7" min="1" max="10" step="0.5"></div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>Incline (%)</label><input type="number" id="runIncline" placeholder="1.5" step="0.5" min="0" max="30" oninput="updateRunSummary()"></div>
+        <div class="field"><label>W/U + C/D (mi)</label><input type="number" id="runWarmup" placeholder="0.5" step="0.01" min="0" oninput="updateRunSummary()" title="Warmup + cooldown miles — excluded from pace"></div>
+      </div>
       <!-- ZONE TIME BREAKDOWN -->
       <div class="zone-fields" id="zoneFields">
         <div class="interval-label" style="color:var(--blue)">❤️ Time in Zones (min)</div>
@@ -738,12 +805,16 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       <div class="interval-fields" id="intervalFields">
         <div class="interval-label">⚡ Interval Details</div>
         <div class="field-row">
-          <div class="field"><label>Speed</label><input type="number" id="intSpeed" placeholder="8.5" step="0.1" min="0"></div>
-          <div class="field"><label># Intervals</label><input type="number" id="intCount" placeholder="6" min="1"></div>
+          <div class="field"><label>Work Speed (mph)</label><input type="number" id="intSpeed" placeholder="8.5" step="0.1" min="0"></div>
+          <div class="field"><label>Rest Speed (mph)</label><input type="number" id="intRestSpeed" placeholder="3.5" step="0.1" min="0"></div>
         </div>
         <div class="field-row">
+          <div class="field"><label># Intervals</label><input type="number" id="intCount" placeholder="6" min="1"></div>
           <div class="field"><label>Int. Time (s)</label><input type="number" id="intDuration" placeholder="60" min="0"></div>
-          <div class="field"><label>Rest (s)</label><input type="number" id="intRest" placeholder="90" min="0"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Rest Time (s)</label><input type="number" id="intRest" placeholder="90" min="0"></div>
+          <div class="field"></div>
         </div>
       </div>
     </div>
@@ -913,6 +984,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
 
 <!-- ACTION ROW -->
 <div class="action-row">
+  <button class="btn-action" onclick="copyLastWorkout()" title="Copy last workout as CSV for AI analysis">📊 Last WO</button>
   <button class="btn-action" onclick="shareWeeklySummary()" title="Copy weekly summary to clipboard">📋 Share</button>
   <button class="btn-action" onclick="resetToSeed()" style="color:var(--dim);border-color:var(--border)">↺ Reset</button>
   <button class="btn-action" onclick="openImportModal()">↑ Import</button>
@@ -1055,9 +1127,9 @@ function getFitnessClass(attrs) {
 
   // Grey zones — lean one way but not enough to fully classify
   if (liftRatio > 0.60)
-    return {name:'Strength-Biased Hybrid', emoji:'🏋️🔱', desc:'Mostly lifting with a running base'};
+    return {name:'Strength-Biased Hybrid', emoji:'⚖️', desc:'Mostly lifting with a running base'};
 
-  return {name:'Cardio-Biased Hybrid', emoji:'🏃🔱', desc:'Mostly running with a strength base'};
+  return {name:'Cardio-Biased Hybrid', emoji:'🌊', desc:'Mostly running with a strength base'};
 }
 
 // Returns requirements for each class — drives the tooltip
@@ -1312,9 +1384,9 @@ function recalcAttrs() {
 function onLiftDateChange() {
   const dateVal = document.getElementById('liftDate').value;
   if (!dateVal) return;
-  // Sync run date
   document.getElementById('runDate').value = dateVal;
   loadPhysioForDate(dateVal);
+  renderExerciseHistory();
 }
 
 function saveBWFromLiftPanel(dateVal) {
@@ -1582,7 +1654,200 @@ function addSetRow(w,r,rpe) {
   setTimeout(()=>{ const ins=document.querySelectorAll('.set-input.w'); if(ins[idx])ins[idx].focus(); },50);
 }
 function removeSetRow(idx) { currentSets.splice(idx,1); renderSetBuilder(); }
-function resetSets() { currentSets=[]; renderSetBuilder(); updateSetSummary(); }
+// ─── CUSTOM EXERCISES ─────────────────────────────────────────────────────────
+const BUILT_IN_EXERCISES = [
+  {name:'Back Squat',pattern:'Squat'},{name:'Deadlift',pattern:'Hinge'},
+  {name:'Bench Press',pattern:'Horizontal Push'},{name:'Standing OHP',pattern:'Vertical Push'},
+  {name:'Barbell Rows',pattern:'Horizontal Pull'},{name:'Hack Squat',pattern:'Squat'},
+  {name:'Leg Press Machine',pattern:'Squat'},{name:'Hip Thrusters',pattern:'Hinge'},
+  {name:'Incline Bench Press',pattern:'Horizontal Push'},{name:'Incline Dumbbell Press',pattern:'Horizontal Push'},
+  {name:'Pull-ups',pattern:'Vertical Pull',bw:true},{name:'Dips',pattern:'Vertical Push',bw:true},
+  {name:'Landmine Rows',pattern:'Horizontal Pull'},{name:'Bulgarian Split Squats',pattern:'Single-leg'},
+  {name:'Other',pattern:''},
+];
+
+function getCustomExercises() {
+  if (!state.customExercises) state.customExercises = [];
+  return state.customExercises;
+}
+
+function populateExerciseDropdown() {
+  const sel = document.getElementById('liftExercise');
+  if (!sel) return;
+  const current = sel.value;
+  // Remove any previously injected custom options
+  sel.querySelectorAll('option[data-custom="true"]').forEach(o => o.remove());
+  // Insert custom exercises before "Other"
+  const otherOpt = [...sel.options].find(o => o.value === 'Other');
+  const customs = getCustomExercises();
+  customs.forEach(ex => {
+    const opt = document.createElement('option');
+    opt.value = ex.name;
+    opt.textContent = ex.name;
+    opt.dataset.pattern = ex.pattern || '';
+    opt.dataset.custom = 'true';
+    if (ex.bw) opt.dataset.bw = 'true';
+    sel.insertBefore(opt, otherOpt);
+  });
+  // Restore selection
+  if (current) sel.value = current;
+}
+
+function startAddExercise() {
+  document.getElementById('addExerciseForm').style.display = 'block';
+  document.getElementById('newExName').focus();
+}
+
+function cancelAddExercise() {
+  document.getElementById('addExerciseForm').style.display = 'none';
+  document.getElementById('newExName').value = '';
+  document.getElementById('newExPattern').value = '';
+  document.getElementById('newExBW').checked = false;
+}
+
+function saveNewExercise() {
+  const name = document.getElementById('newExName').value.trim();
+  if (!name) { showToast('Enter an exercise name'); return; }
+  const pattern = document.getElementById('newExPattern').value;
+  const bw = document.getElementById('newExBW').checked;
+  if (!state.customExercises) state.customExercises = [];
+  // Prevent duplicate
+  const allNames = [...BUILT_IN_EXERCISES.map(e=>e.name), ...state.customExercises.map(e=>e.name)];
+  if (allNames.some(n => n.toLowerCase() === name.toLowerCase())) {
+    showToast(name + ' already exists'); return;
+  }
+  state.customExercises.push({name, pattern, bw});
+  save();
+  populateExerciseDropdown();
+  cancelAddExercise();
+  // Auto-select the new exercise
+  document.getElementById('liftExercise').value = name;
+  resetSets(); renderExerciseHistory();
+  showToast('✓ ' + name + ' added');
+}
+
+// ─── ACCESSORY SETS XP ────────────────────────────────────────────────────────
+const ACCESSORY_XP_PER_SET = 7;
+let accessorySets = 0;
+
+function adjustAccessorySets(delta) {
+  accessorySets = Math.max(0, accessorySets + delta);
+  const xp = accessorySets * ACCESSORY_XP_PER_SET;
+  document.getElementById('accessorySetsCount').textContent = accessorySets;
+  document.getElementById('accessoryXPPreview').textContent = xp + ' XP';
+  document.getElementById('accessoryXPPreview').style.color = accessorySets > 0 ? 'var(--accent)' : 'var(--dim2)';
+  document.getElementById('accessoryLogBtn').disabled = accessorySets === 0;
+}
+
+function logAccessorySets() {
+  if (accessorySets === 0) return;
+  const xp = accessorySets * ACCESSORY_XP_PER_SET;
+  addXP(xp);
+  save();
+  showToast(`+${xp} XP — ${accessorySets} accessory sets`);
+  // Reset
+  accessorySets = 0;
+  adjustAccessorySets(0);
+  renderAll();
+}
+
+function toggleLiftExpand(i) {
+  const panel = document.getElementById('lift-expand-'+i);
+  const chev  = document.getElementById('lift-chevron-'+i);
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function renderExerciseHistory() {
+  const el = document.getElementById('exerciseHistory');
+  if (!el) return;
+  const exercise = document.getElementById('liftExercise').value;
+  if (!exercise) { el.style.display = 'none'; return; }
+
+  const bwEx = isBWExercise();
+  const todayVal = document.getElementById('liftDate').value || todayStr();
+
+  // All past sessions for this exercise (excluding today being logged)
+  const entries = state.liftLog
+    .filter(e => e.exercise.toLowerCase() === exercise.toLowerCase() && e.date < todayVal && e.weight >= 0)
+    .sort((a,b) => b.date.localeCompare(a.date)); // newest first
+
+  if (!entries.length) {
+    el.style.display = 'block';
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:9px;color:var(--dim2);text-align:center;padding:4px 0">No previous sessions for ${exercise}</div>`;
+    return;
+  }
+
+  const bw = parseFloat(document.getElementById('physioBW')?.value) ||
+    (state.bodyWeightLog||[]).slice(-1)[0]?.weight || null;
+
+  // Best all-time E1RM
+  const withE1rm = entries.map(e => ({...e, e1rm: (e.weight||0)*(1+(e.reps||1)/30)}));
+  const allTimeBest = withE1rm.reduce((a,b) => a.e1rm > b.e1rm ? a : b);
+
+  // Last 5 sessions for mini trend
+  const recent = entries.slice(0, 5);
+  const last = recent[0]; // most recent
+
+  // Format a session entry compactly
+  const fmtEntry = e => {
+    if (bwEx) {
+      const total = bw ? `${bw}+${e.weight||0}=${((bw||0)+(e.weight||0)).toFixed(0)}lbs` : `+${e.weight||0}lbs`;
+      return `${e.setsDetail || total+'×'+e.reps}`;
+    }
+    return e.setsDetail || `${e.weight}lbs×${e.reps}`;
+  };
+
+  // E1RM for display
+  const e1rm = e => bwEx
+    ? Math.round(((bw||0)+(e.weight||0))*(1+(e.reps||1)/30))
+    : Math.round((e.weight||0)*(1+(e.reps||1)/30));
+
+  // Trend over last 3 sessions
+  const trendEntries = recent.slice(0, 3).reverse();
+  const trendArrow = trendEntries.length >= 2
+    ? (e1rm(trendEntries[trendEntries.length-1]) > e1rm(trendEntries[0])+2 ? '<span style="color:var(--teal)">↑</span>'
+      : e1rm(trendEntries[trendEntries.length-1]) < e1rm(trendEntries[0])-2 ? '<span style="color:var(--red)">↓</span>'
+      : '<span style="color:var(--dim2)">→</span>') : '';
+
+  // Relative strength
+  const relStr = bw && allTimeBest.weight
+    ? ` · <span style="color:var(--teal)">${(e1rm(allTimeBest)/bw).toFixed(2)}×BW</span>` : '';
+
+  // Recent sessions list (last 5)
+  const sessionRows = recent.map(e => {
+    const rpeStr = e.rpe ? ` <span style="color:${getRPEColor(e.rpe)}">@${e.rpe}</span>` : '';
+    const e1rmStr = e.weight > 0 ? ` <span style="color:var(--dim2)">→${e1rm(e)}lbs E1RM</span>` : '';
+    return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">${e.date.slice(5)}</span>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text2);flex:1;text-align:center;padding:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fmtEntry(e)}${rpeStr}</span>
+      <span style="font-family:var(--mono);font-size:9px;white-space:nowrap">${e1rmStr}</span>
+    </div>`;
+  }).join('');
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase">📊 ${exercise} History</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--dim2)">${entries.length} sessions ${trendArrow}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <div style="background:var(--surface3);border-radius:5px;padding:6px 8px">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Last Session</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text2)">${last.date.slice(5)}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim2);margin-top:1px">${fmtEntry(last)}${last.rpe?` @${last.rpe}`:''}</div>
+      </div>
+      <div style="background:var(--surface3);border-radius:5px;padding:6px 8px">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">All-Time Best E1RM</div>
+        <div style="font-size:11px;font-weight:700;color:var(--accent)">${e1rm(allTimeBest)}lbs${relStr}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--dim2);margin-top:1px">${allTimeBest.date.slice(5)} · ${fmtEntry(allTimeBest)}</div>
+      </div>
+    </div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Recent Sessions</div>
+    ${sessionRows}`;
+}
 
 function getRPEColor(rpe) {
   if (rpe <= 5) return 'var(--teal)';
@@ -1764,21 +2029,36 @@ function getHRZone(hr) {
 }
 
 function updateRunSummary() {
-  const dist = parseFloat(document.getElementById('runDist').value) || 0;
-  const time = parseFloat(document.getElementById('runTime').value) || 0;
-  const hr   = parseFloat(document.getElementById('runHR').value) || 0;
-  const type = document.getElementById('runType').value;
+  const dist    = parseFloat(document.getElementById('runDist').value) || 0;
+  const time    = parseFloat(document.getElementById('runTime').value) || 0;
+  const hr      = parseFloat(document.getElementById('runHR').value) || 0;
+  const incline = parseFloat(document.getElementById('runIncline').value) || 0;
+  const warmup  = parseFloat(document.getElementById('runWarmup').value) || 0;
+  const type    = document.getElementById('runType').value;
   if (!type) { showToast('Choose a run type first'); return; }
   const sumEl = document.getElementById('runSummary');
 
   if (!dist) { sumEl.style.display = 'none'; return; }
 
+  // Working distance = total minus warmup/cooldown — pace calculated on this only
+  const workingDist = Math.max(0, dist - warmup);
+
   sumEl.style.display = 'block';
   let html = '';
 
-  // Pace
-  if (time > 0) {
-    const pace = time / dist;
+  // Distance breakdown if warmup logged
+  if (warmup > 0) {
+    html += `Total: <b>${dist}mi</b> · Working: <b>${workingDist.toFixed(2)}mi</b> · W/U+C/D: <b>${warmup}mi</b><br>`;
+  }
+
+  // Incline
+  if (incline > 0) {
+    html += `Incline: <b>${incline}%</b><br>`;
+  }
+
+  // Pace — uses working distance, not total
+  if (time > 0 && workingDist > 0) {
+    const pace = time / workingDist;
     const pMin = Math.floor(pace);
     const pSec = Math.round((pace - pMin) * 60).toString().padStart(2,'0');
     const target = PACE_TARGETS[type];
@@ -1788,7 +2068,12 @@ function updateRunSummary() {
       else if (pace > target.hi) paceTag = `<span class="pace-tag pace-slow">↓ Slow for ${target.label}</span>`;
       else paceTag = `<span class="pace-tag pace-on">✓ On target</span>`;
     }
-    html += `Pace: <b>${pMin}:${pSec}/mi</b> ${paceTag}<br>`;
+    html += `Pace: <b>${pMin}:${pSec}/mi</b>${warmup>0?' (working)':''} ${paceTag}<br>`;
+  } else if (time > 0 && dist > 0) {
+    const pace = time / dist;
+    const pMin = Math.floor(pace);
+    const pSec = Math.round((pace - pMin) * 60).toString().padStart(2,'0');
+    html += `Pace: <b>${pMin}:${pSec}/mi</b><br>`;
   }
 
   // HR zone
@@ -1848,7 +2133,18 @@ function logLift() {
     ? valid.map(r=>`BW+${parseFloat(r.weight)||0}×${r.reps}`+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ')
     : valid.map(r=>r.weight+'×'+r.reps+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ');
   const bestRpe = valid.reduce((best,r)=>r.rpe>best?r.rpe:best, 0) || null;
-  const xp=Math.round(totalVol/100*2+workingSets*3);
+
+  // XP calculation
+  // BW exercises (pull-ups, dips): reps-based at 1/4 rate, small bonus for added weight
+  // Regular exercises: volume-based (weight × reps)
+  let xp;
+  if (bwEx) {
+    const totalReps = valid.reduce((s,r)=>s+r.reps, 0);
+    const addedWeightBonus = valid.reduce((s,r)=>s+(parseFloat(r.weight)||0)*r.reps, 0);
+    xp = Math.round((totalReps * 2) + (addedWeightBonus / 100) + workingSets * 2);
+  } else {
+    xp = Math.round(totalVol/100*2 + workingSets*3);
+  }
   state.totalVolumeLbs+=totalVol;
   addXP(xp);
   state.liftLog.unshift({date:dateVal,exercise,pattern,location,rpe:bestRpe,xp,weight:topEff,reps:topR,sets:workingSets,totalReps:totalR,totalVol,setsDetail});
@@ -1864,12 +2160,14 @@ function toggleIntervalFields() {
 }
 
 function logRun() {
-  const dist=parseFloat(document.getElementById('runDist').value)||0;
-  const time=parseFloat(document.getElementById('runTime').value)||null;
-  const type=document.getElementById('runType').value;
-  const hr=parseFloat(document.getElementById('runHR').value)||null;
-  const rpe=parseFloat(document.getElementById('runRPE').value)||null;
-  const dateVal=document.getElementById('runDate').value||todayStr();
+  const dist    = parseFloat(document.getElementById('runDist').value)||0;
+  const time    = parseFloat(document.getElementById('runTime').value)||null;
+  const type    = document.getElementById('runType').value;
+  const hr      = parseFloat(document.getElementById('runHR').value)||null;
+  const rpe     = parseFloat(document.getElementById('runRPE').value)||null;
+  const incline = parseFloat(document.getElementById('runIncline').value)||null;
+  const warmup  = parseFloat(document.getElementById('runWarmup').value)||0;
+  const dateVal = document.getElementById('runDate').value||todayStr();
   if(dist<=0){showToast('Enter a distance');return;}
   const z1=parseFloat(document.getElementById('z1').value)||null;
   const z2=parseFloat(document.getElementById('z2').value)||null;
@@ -1877,23 +2175,40 @@ function logRun() {
   const z4=parseFloat(document.getElementById('z4').value)||null;
   const z5=parseFloat(document.getElementById('z5').value)||null;
   const zones = (z1||z2||z3||z4||z5) ? {z1,z2,z3,z4,z5} : null;
-  const isInt=type.includes('Interval');
-  const intSpeed=isInt?(parseFloat(document.getElementById('intSpeed').value)||null):null;
-  const intCount=isInt?(parseInt(document.getElementById('intCount').value)||null):null;
-  const intDuration=isInt?(parseFloat(document.getElementById('intDuration').value)||null):null;
-  const intRest=isInt?(parseFloat(document.getElementById('intRest').value)||null):null;
-  const multMap={'Easy':1,'Tempo':1.5,'Interval':1.8,'Long':1.4,'Easy/Incline Walk':0.8,'Easy/Interval':1.3,'Easy/Tempo':1.2};
-  const mult=multMap[type]||1;
-  const xp=Math.round(dist*1.60934*10*mult);
-  state.totalMiles+=dist;
+  const isInt = type.includes('Interval');
+  const intSpeed     = isInt ? (parseFloat(document.getElementById('intSpeed').value)||null)     : null;
+  const intRestSpeed = isInt ? (parseFloat(document.getElementById('intRestSpeed').value)||null)  : null;
+  const intCount     = isInt ? (parseInt(document.getElementById('intCount').value)||null)         : null;
+  const intDuration  = isInt ? (parseFloat(document.getElementById('intDuration').value)||null)   : null;
+  const intRest      = isInt ? (parseFloat(document.getElementById('intRest').value)||null)        : null;
+
+  // Working distance = total minus warmup/cooldown — used for pace
+  const workingDist = Math.max(0, dist - warmup);
+
+  const multMap = {'Easy':1,'Tempo':1.5,'Interval':1.8,'Long':1.4,'Easy/Incline Walk':0.8,'Easy/Interval':1.3,'Easy/Tempo':1.2};
+  const mult = multMap[type]||1;
+  const xp = Math.round(dist*1.60934*10*mult);
+  state.totalMiles += dist;
   addXP(xp);
-  state.runLog.unshift({date:dateVal,type,dist:Math.round(dist*100)/100,time,hr,rpe,intSpeed,intCount,intDuration,intRest,zones,xp});
+  state.runLog.unshift({
+    date:dateVal, type, dist:Math.round(dist*100)/100,
+    workingDist: warmup>0 ? Math.round(workingDist*100)/100 : null,
+    warmup: warmup||null,
+    time, hr, rpe, incline,
+    intSpeed, intRestSpeed, intCount, intDuration, intRest,
+    zones, xp
+  });
   if(state.runLog.length>200)state.runLog.pop();
   recalcSessions(); recalcAttrs();
-  checkAchievements();save();renderAll();
-  const intS=intCount&&intDuration?' · '+intCount+'×'+intDuration+'s':'';
-  showToast('+'+xp+' XP — '+type+' '+dist+'mi'+intS);
-  ['runDist','runTime','runHR','runRPE','intSpeed','intCount','intDuration','intRest','z1','z2','z3','z4','z5'].forEach(id=>document.getElementById(id).value='');
+  checkAchievements(); save(); renderAll();
+  const intS = intCount&&intDuration ? ' · '+intCount+'×'+intDuration+'s' : '';
+  const inclineS = incline ? ' @'+incline+'%' : '';
+  showToast('+'+xp+' XP — '+type+' '+dist+'mi'+inclineS+intS);
+  ['runDist','runTime','runHR','runRPE','runIncline','runWarmup',
+   'intSpeed','intRestSpeed','intCount','intDuration','intRest',
+   'z1','z2','z3','z4','z5'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
   document.getElementById('runSummary').style.display='none';
 }
 
@@ -1926,26 +2241,90 @@ function runExport(){
   else if(exportRange==='week'){lifts=state.liftLog.filter(e=>e.date>=weekStr);runs=state.runLog.filter(e=>e.date>=weekStr);}
   else{lifts=[...state.liftLog];runs=[...state.runLog];}
   if(!lifts.length&&!runs.length){closeExportModal();showToast('No data in range');return;}
-  lifts.sort((a,b)=>a.date.localeCompare(b.date));runs.sort((a,b)=>a.date.localeCompare(b.date));
-  function esc(v){if(v===null||v===undefined)return'';const s=String(v);return(s.includes(',')||s.includes('"'))?'"'+s.replace(/"/g,'""')+'"':s;}
-  function row(arr){return arr.map(esc).join(',');}
-  const lHdr=row(['Date','Exercise Name','Movement Pattern','Top Weight','Best Set # of Reps','Total Reps @ Top Weight','Sets Detail (with RPE)','Total Working Sets','Estimated 1RM','Relative Strength','Week #','Location (Home/Hotel)','Bodyweight','Sleep Duration','Sleep Score','Physiological Notes']);
-  const lRows=lifts.map(l=>{
-    const e1rm=l.weight&&l.reps?(l.weight*(1+l.reps/30)).toFixed(2):'';
+  lifts.sort((a,b)=>a.date.localeCompare(b.date));
+  runs.sort((a,b)=>a.date.localeCompare(b.date));
+
+  function esc(v){
+    if(v===null||v===undefined)return'';
+    const s=String(v);
+    return(s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s;
+  }
+
+  // Column definitions
+  const liftCols = [
+    'Date','Exercise Name','Movement Pattern','Top Weight','Best Set # of Reps',
+    'Total Reps @ Top Weight','Sets Detail (with RPE)','Total Working Sets',
+    'Estimated 1RM','Relative Strength','Location','Bodyweight',
+    'Sleep Duration','Sleep Score','Physiological Notes'
+  ];
+  const runCols = [
+    'Date','Run Type','Distance (mi)','Working Distance (mi)','Time (min)',
+    'Avg Pace','Work Speed (mph)','Rest Speed (mph)','# Intervals',
+    'Int Duration (s)','Rest Duration (s)','Incline (%)','Warmup+Cooldown (mi)',
+    'Avg HR','HR Zone','RPE','Z1 (min)','Z2 (min)','Z3 (min)','Z4 (min)','Z5 (min)','XP'
+  ];
+
+  // Build lift rows
+  const liftRows = lifts.map(l=>{
+    const e1rm = l.weight&&l.reps ? (l.weight*(1+l.reps/30)).toFixed(2) : '';
+    const bwLatest = (state.bodyWeightLog||[]).slice(-1)[0]?.weight||'';
+    const rel = e1rm&&bwLatest ? (parseFloat(e1rm)/bwLatest).toFixed(2) : '';
     const physio = (state.physioLog||[]).find(p=>p.date===l.date)||{};
-    const bw = physio.bw||'';
-    const sleep = physio.sleep||'';
-    const sleepScore = physio.sleepScore||'';
-    const notes = physio.notes||'';
-    return row([l.date,l.exercise,l.pattern,l.weight||'',l.reps||'',l.totalReps||l.reps||'',l.setsDetail||'',l.sets||'',e1rm,'','',l.location,bw,sleep,sleepScore,notes]);
+    return [
+      l.date, l.exercise, l.pattern, l.weight||'', l.reps||'',
+      l.totalReps||l.reps||'', l.setsDetail||'', l.sets||'',
+      e1rm, rel, l.location, physio.bw||'',
+      physio.sleep||'', physio.sleepScore||'', physio.notes||''
+    ];
   });
-  const rHdr=row(['Date','Run Type (Easy / Tempo / Interval / Long)','Distance (miles)','Total Time (minutes)','Avg Pace','Interval Speed','Interval Duration (seconds)','# of Intervals','Rest Duration (seconds)','Incline','Avg HR','RPE','Week #','Location','Total Mileage with Cooldown']);
-  const rRows=runs.map(r=>{const pace=r.dist&&r.time?(r.time/r.dist).toFixed(2):'';return row([r.date,r.type,r.dist,r.time||'',pace,r.intSpeed||'',r.intDuration||'',r.intCount||'',r.intRest||'','',r.hr||'',r.rpe||'','','','']);});
-  const label=exportRange==='today'?today:exportRange==='week'?'week-'+weekStr:'all';
-  function dl(csv,fn){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=fn;a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>document.body.removeChild(a),1000);}
-  if(lifts.length)dl([lHdr,...lRows].join('\r\n'),'Workout_Lifts_'+label+'.csv');
-  if(runs.length)setTimeout(()=>dl([rHdr,...rRows].join('\r\n'),'Workout_Runs_'+label+'.csv'),400);
-  closeExportModal();showToast('Exported '+lifts.length+' lifts, '+runs.length+' runs');
+
+  // Build run rows
+  const runRows = runs.map(r=>{
+    const paceDist = (r.workingDist&&r.workingDist>0) ? r.workingDist : r.dist;
+    const paceVal  = r.time&&paceDist ? (r.time/paceDist) : null;
+    const paceStr  = paceVal ? `${Math.floor(paceVal)}:${String(Math.round((paceVal%1)*60)).padStart(2,'0')}` : '';
+    const hrZone   = r.hr ? getHRZone(r.hr) : null;
+    return [
+      r.date, r.type, r.dist, r.workingDist||r.dist, r.time||'', paceStr,
+      r.intSpeed||'', r.intRestSpeed||'', r.intCount||'',
+      r.intDuration||'', r.intRest||'',
+      r.incline||'', r.warmup||'',
+      r.hr||'', hrZone?`Z${hrZone.z} ${hrZone.name}`:'', r.rpe||'',
+      r.zones?.z1||'', r.zones?.z2||'', r.zones?.z3||'',
+      r.zones?.z4||'', r.zones?.z5||'', r.xp||''
+    ];
+  });
+
+  // Side-by-side: lift cols | blank separator | run cols
+  const sep = [''];  // single blank column separator
+  const totalRows = Math.max(liftRows.length, runRows.length);
+
+  const emptyLift = new Array(liftCols.length).fill('');
+  const emptyRun  = new Array(runCols.length).fill('');
+
+  // Header row
+  const csvRows = [];
+  csvRows.push([...liftCols, ...sep, ...runCols].map(esc).join(','));
+
+  // Data rows — pad shorter side with empty cells
+  for (let i = 0; i < totalRows; i++) {
+    const l = liftRows[i] || emptyLift;
+    const r = runRows[i]  || emptyRun;
+    csvRows.push([...l, ...sep, ...r].map(esc).join(','));
+  }
+
+  const csv = csvRows.join('\r\n');
+  const label = exportRange==='today' ? today : exportRange==='week' ? 'week-'+weekStr : 'all';
+  const filename = 'IRONLOG_'+label+'.csv';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>document.body.removeChild(a), 1000);
+  closeExportModal();
+  showToast('Exported '+lifts.length+' lifts, '+runs.length+' runs → '+filename);
 }
 
 // ─── IMPORT ───────────────────────────────────────────────────────────────────
@@ -2278,17 +2657,59 @@ function renderAll() {
   document.getElementById('statXP').innerHTML=totalXPEarned().toLocaleString()+' <span class="stat-sub">xp</span>';
 
   // Feeds
-  document.getElementById('liftFeed').innerHTML=state.liftLog.slice(0,8).map(e=>{
-    const detail=e.setsDetail||(e.weight?e.weight+'lbs ×'+e.sets+'×'+e.reps:'BW');
-    return '<div class="log-entry"><span class="entry-main">'+e.exercise+' — '+detail+'</span><span class="entry-xp">+'+e.xp+'xp</span></div>';
+  document.getElementById('liftFeed').innerHTML=state.liftLog.slice(0,10).map((e,i)=>{
+    const bw = (state.bodyWeightLog||[]).slice(-1)[0]?.weight;
+    const e1rm = e.weight > 0 ? Math.round(e.weight*(1+(e.reps||1)/30)) : null;
+    const relStr = bw && e1rm ? (e1rm/bw).toFixed(2)+'×BW' : null;
+    const detail = e.setsDetail||(e.weight?e.weight+'lbs×'+e.sets+'×'+e.reps:'BW');
+    const rpeStr = e.rpe ? ` @RPE${e.rpe}` : '';
+    const locIcon = (e.location||'').includes('Hotel')||((e.location||'').includes('Away')) ? '✈️' : '🏠';
+
+    // Expanded detail panel
+    const expanded = `<div class="feed-expand" id="lift-expand-${i}" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px">
+        ${e1rm ? `<div style="background:var(--surface3);border-radius:5px;padding:6px 8px;text-align:center">
+          <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);text-transform:uppercase;letter-spacing:1px">E1RM</div>
+          <div style="font-size:14px;font-weight:800;color:var(--accent)">${e1rm}<span style="font-size:9px;font-weight:400;color:var(--dim2)">lbs</span></div>
+        </div>` : ''}
+        ${relStr ? `<div style="background:var(--surface3);border-radius:5px;padding:6px 8px;text-align:center">
+          <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);text-transform:uppercase;letter-spacing:1px">Rel Str</div>
+          <div style="font-size:14px;font-weight:800;color:var(--teal)">${relStr}</div>
+        </div>` : ''}
+        <div style="background:var(--surface3);border-radius:5px;padding:6px 8px;text-align:center">
+          <div style="font-family:var(--mono);font-size:8px;color:var(--dim2);text-transform:uppercase;letter-spacing:1px">Volume</div>
+          <div style="font-size:14px;font-weight:800;color:var(--blue)">${(e.totalVol||0).toLocaleString()}<span style="font-size:9px;font-weight:400;color:var(--dim2)">lbs</span></div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;font-size:8px">Sets</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8;word-break:break-all">${detail}</div>
+      ${e.rpe ? `<div style="margin-top:6px;font-family:var(--mono);font-size:9px">RPE <span style="color:${getRPEColor(e.rpe)};font-weight:700">${e.rpe}</span></div>` : ''}
+      <div style="margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--dim2)">${locIcon} ${e.location||'—'} · ${e.sets||'?'} sets · ${e.totalReps||e.reps||'?'} reps${e.pattern?' · '+e.pattern:''}</div>
+    </div>`;
+
+    return `<div class="log-entry" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="toggleLiftExpand(${i})">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <span class="entry-main" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.exercise} — ${detail.split(',')[0]}${detail.includes(',')?'…':''}</span>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span class="entry-xp">+${e.xp}xp</span>
+          <span id="lift-chevron-${i}" style="font-family:var(--mono);font-size:9px;color:var(--dim2);transition:transform 0.2s">▾</span>
+        </div>
+      </div>
+      ${expanded}
+    </div>`;
   }).join('')||'<div class="empty-feed">No sessions logged yet</div>';
   document.getElementById('runFeed').innerHTML=state.runLog.slice(0,8).map(e=>{
-    const pace=e.dist&&e.time?' @'+(e.time/e.dist).toFixed(1)+'/mi':'';
-    const ints=e.intCount&&e.intDuration?' · '+e.intCount+'×'+e.intDuration+'s':'';
-    const hrZone=e.hr?getHRZone(e.hr):null;
-    const hrStr=hrZone?` <span style="color:${hrZone.color};font-size:9px">Z${hrZone.z}</span>`:'';
-    // Zone bar
-    let zBar='';
+    // Use working distance for pace if warmup was logged, otherwise total dist
+    const paceDist = (e.workingDist && e.workingDist > 0) ? e.workingDist : e.dist;
+    const paceVal = paceDist && e.time ? e.time/paceDist : null;
+    const paceStr = paceVal ? ` @${Math.floor(paceVal)}:${String(Math.round((paceVal%1)*60)).padStart(2,'0')}/mi` : '';
+    const ints = e.intCount&&e.intDuration ? ` · ${e.intCount}×${e.intDuration}s` : '';
+    const restSpeedStr = e.intRestSpeed ? ` rest@${e.intRestSpeed}mph` : '';
+    const inclineStr = e.incline ? ` ${e.incline}%↑` : '';
+    const hrZone = e.hr ? getHRZone(e.hr) : null;
+    const hrStr = hrZone ? ` <span style="color:${hrZone.color};font-size:9px">Z${hrZone.z}</span>` : '';
+    const warmupStr = e.warmup ? ` <span style="color:var(--dim2);font-size:9px">(+${e.warmup}mi w/u)</span>` : '';
+    let zBar = '';
     if(e.zones){
       const zv=[e.zones.z1,e.zones.z2,e.zones.z3,e.zones.z4,e.zones.z5].map(v=>v||0);
       const zt=zv.reduce((a,b)=>a+b,0);
@@ -2297,7 +2718,7 @@ function renderAll() {
     }
     return '<div class="log-entry" style="flex-direction:column;align-items:flex-start;gap:2px">'+
       '<div style="display:flex;justify-content:space-between;width:100%">'+
-      '<span class="entry-main">'+e.type+' '+e.dist+'mi'+pace+ints+hrStr+'</span>'+
+      `<span class="entry-main">${e.type} ${e.dist}mi${paceStr}${inclineStr}${ints}${restSpeedStr}${hrStr}${warmupStr}</span>`+
       '<span class="entry-xp">+'+e.xp+'xp</span></div>'+
       zBar+'</div>';
   }).join('')||'<div class="empty-feed">No runs logged yet</div>';
@@ -2339,7 +2760,7 @@ function toggleCharts() {
   }
 }
 const CHART_COLORS = {
-  accent: '#ff6b35', teal: '#00c9a7', blue: '#4d9fff',
+  accent: '#f5c518', teal: '#00c9a7', blue: '#4d9fff',
   purple: '#a78bfa', red: '#ff4d6d', amber: '#f59e0b',
   dim: '#2a3045', text: '#6b7499', text2: '#c8d0f0',
   z1:'#a8d5e2', z2:'#00c9a7', z3:'#f59e0b', z4:'#ff6b35', z5:'#ff4d6d'
@@ -2725,99 +3146,152 @@ function buildAnalysisPrompt(period) {
   const { fromStr, toStr } = getAnalysisDateRange(period);
   const periodLabel = { week:'last 7 days', month:'last 30 days', year:'last 12 months', all:'all time' }[period];
 
-  const lifts = state.liftLog.filter(e=>e.date>=fromStr&&e.date<=toStr);
-  const runs  = state.runLog.filter(e=>e.date>=fromStr&&e.date<=toStr);
-  const physio = (state.physioLog||[]).filter(e=>e.date>=fromStr&&e.date<=toStr);
+  const lifts  = state.liftLog.filter(e=>e.date>=fromStr&&e.date<=toStr);
+  const runs   = state.runLog.filter(e=>e.date>=fromStr&&e.date<=toStr);
 
-  // Lift summary per exercise
+  // Physio — pull from physioLog but also fall back to bodyWeightLog for BW
+  const allPhysio = (state.physioLog||[]).filter(e=>e.date>=fromStr&&e.date<=toStr)
+                      .sort((a,b)=>a.date.localeCompare(b.date));
+  const allBW = (state.bodyWeightLog||[]).filter(e=>e.date>=fromStr&&e.date<=toStr)
+                  .sort((a,b)=>a.date.localeCompare(b.date));
+
+  // Unique training days (not entry count)
+  const liftDays = new Set(lifts.map(e=>e.date)).size;
+  const runDays  = new Set(runs.map(e=>e.date)).size;
+  const totalDays = new Set([...lifts.map(e=>e.date),...runs.map(e=>e.date)]).size;
+
+  // Date span in weeks
+  const spanDays = Math.max(1, (new Date(toStr)-new Date(fromStr))/(1000*60*60*24));
+  const spanWeeks = (spanDays/7).toFixed(1);
+
+  // Lift summary per exercise — E1RM trend first→last
   const liftsByEx = {};
   lifts.forEach(e=>{
     if(!liftsByEx[e.exercise]) liftsByEx[e.exercise]=[];
     liftsByEx[e.exercise].push(e);
   });
-  const liftSummary = Object.entries(liftsByEx).map(([ex,entries])=>{
+  const liftLines = Object.entries(liftsByEx).map(([ex,entries])=>{
     const sorted = [...entries].sort((a,b)=>a.date.localeCompare(b.date));
-    const bestE1rm = Math.max(...entries.map(e=>e.weight*(1+(e.reps||1)/30)));
-    const lastE1rm = sorted[sorted.length-1].weight*(1+(sorted[sorted.length-1].reps||1)/30);
-    const firstE1rm = sorted[0].weight*(1+(sorted[0].reps||1)/30);
-    const trend = lastE1rm > firstE1rm+1 ? '↑' : lastE1rm < firstE1rm-1 ? '↓' : '→';
-    return `${ex}: ${entries.length} sessions, best E1RM ${Math.round(bestE1rm)}lbs, trend ${trend} (${Math.round(firstE1rm)}→${Math.round(lastE1rm)}lbs)`;
-  }).join('\n');
+    const e1rm = e => e.weight>0 ? Math.round(e.weight*(1+(e.reps||1)/30)) : 0;
+    const first = e1rm(sorted[0]);
+    const last  = e1rm(sorted[sorted.length-1]);
+    const best  = Math.max(...sorted.map(e1rm));
+    const trend = last>first+2?'↑':last<first-2?'↓':'→';
+    const rpeStr = sorted[sorted.length-1].rpe ? ` @RPE${sorted[sorted.length-1].rpe}` : '';
+    return `  ${ex}: ${sorted.length}x sessions | best E1RM ${best}lbs | ${first}→${last}lbs ${trend}${rpeStr}`;
+  }).join('\n') || '  No lift data';
 
-  // Run summary
-  const totalMiles = runs.reduce((s,r)=>s+r.dist,0);
-  const avgPace = runs.filter(r=>r.time&&r.dist).map(r=>r.time/r.dist);
-  const avgPaceStr = avgPace.length ? (avgPace.reduce((a,b)=>a+b,0)/avgPace.length).toFixed(2)+' min/mi' : 'N/A';
-  const runTypes = {};
-  runs.forEach(r=>{ runTypes[r.type]=(runTypes[r.type]||0)+1; });
-  const zoneTotal = {z1:0,z2:0,z3:0,z4:0,z5:0};
-  runs.filter(r=>r.zones).forEach(r=>Object.keys(zoneTotal).forEach(k=>zoneTotal[k]+=(r.zones[k]||0)));
-  const zoneSummary = Object.entries(zoneTotal).filter(([,v])=>v>0).map(([k,v])=>`${k.toUpperCase()}:${Math.round(v)}min`).join(', ');
+  const totalVol = lifts.reduce((s,e)=>s+(e.totalVol||0),0);
 
-  // Physio summary
-  const avgSleep = physio.filter(p=>p.sleepScore).length ?
-    (physio.filter(p=>p.sleepScore).reduce((s,p)=>s+p.sleepScore,0)/physio.filter(p=>p.sleepScore).length).toFixed(0) : 'N/A';
-  const avgFatigue = physio.filter(p=>p.fatigue).length ?
-    (physio.filter(p=>p.fatigue).reduce((s,p)=>s+p.fatigue,0)/physio.filter(p=>p.fatigue).length).toFixed(1) : 'N/A';
+  // Run summary — parse pace correctly (time is in minutes)
+  const runLines = [];
+  const runTypeCount = {};
+  let totalMiles = 0, validPaces = [], totalHR = [], hardMiles = 0;
+  runs.forEach(r=>{
+    totalMiles += r.dist||0;
+    runTypeCount[r.type] = (runTypeCount[r.type]||0)+1;
+    if (r.type.includes('Interval')||r.type.includes('Tempo')) hardMiles += r.dist||0;
+    if (r.time && r.dist && r.time>0 && r.dist>0) {
+      // Use working distance (excludes warmup/cooldown) for pace if available
+      const paceDist = (r.workingDist && r.workingDist > 0) ? r.workingDist : r.dist;
+      const paceMin = r.time / paceDist;
+      if (paceMin > 4 && paceMin < 20) validPaces.push(paceMin);
+    }
+    if (r.hr) totalHR.push(r.hr);
+  });
+  const avgPaceMin = validPaces.length ? validPaces.reduce((a,b)=>a+b,0)/validPaces.length : null;
+  const avgPaceStr = avgPaceMin ? `${Math.floor(avgPaceMin)}:${String(Math.round((avgPaceMin%1)*60)).padStart(2,'0')}/mi` : 'N/A';
+  const avgHR = totalHR.length ? Math.round(totalHR.reduce((a,b)=>a+b,0)/totalHR.length) : null;
+  const easyMiles = totalMiles - hardMiles;
+  const intensityRatio = totalMiles>0 ? Math.round(hardMiles/totalMiles*100) : 0;
 
-  // BW trend
-  const bwEntries = physio.filter(p=>p.bw).sort((a,b)=>a.date.localeCompare(b.date));
-  const bwTrend = bwEntries.length >= 2
-    ? `${bwEntries[0].bw}lbs → ${bwEntries[bwEntries.length-1].bw}lbs (${(bwEntries[bwEntries.length-1].bw - bwEntries[0].bw).toFixed(1)}lbs change)`
-    : bwEntries.length === 1 ? `${bwEntries[0].bw}lbs` : 'N/A';
+  // Physio — BW trend
+  const bwData = allBW.length ? allBW : allPhysio.filter(p=>p.bw);
+  const bwFirst = bwData[0]?.weight || bwData[0]?.bw;
+  const bwLast  = bwData[bwData.length-1]?.weight || bwData[bwData.length-1]?.bw;
+  const latestBW = bwLast || (state.bodyWeightLog||[]).slice(-1)[0]?.weight;
+  const bwTrend = bwFirst && bwLast && bwFirst!==bwLast
+    ? `${bwFirst}→${bwLast}lbs (${(bwLast-bwFirst>0?'+':'')}${(bwLast-bwFirst).toFixed(1)}lbs)`
+    : latestBW ? `${latestBW}lbs (single weigh-in)` : 'No weigh-ins logged';
 
-  // Latest FFMI/BMI
-  const latestBW = (state.bodyWeightLog||[]).slice(-1)[0]?.weight;
+  // Sleep & fatigue
+  const sleepEntries = allPhysio.filter(p=>p.sleepScore);
+  const fatigueEntries = allPhysio.filter(p=>p.fatigue);
+  const avgSleep = sleepEntries.length
+    ? (sleepEntries.reduce((s,p)=>s+p.sleepScore,0)/sleepEntries.length).toFixed(0) : 'N/A';
+  const avgFatigue = fatigueEntries.length
+    ? (fatigueEntries.reduce((s,p)=>s+p.fatigue,0)/fatigueEntries.length).toFixed(1) : 'N/A';
+  const sleepRange = sleepEntries.length>=2
+    ? ` (range ${Math.min(...sleepEntries.map(p=>p.sleepScore))}–${Math.max(...sleepEntries.map(p=>p.sleepScore))})` : '';
+
+  // Recent session notes (last 5 with notes)
+  const recentNotes = (state.physioLog||[]).filter(p=>p.notes).slice(-5)
+    .map(p=>`  ${p.date}: ${p.notes}`).join('\n');
+
+  // FFMI
   let ffmiStr = 'N/A';
   if (latestBW && state.heightFt) {
     const totalIn = state.heightFt*12+(state.heightIn||0);
     const hM = totalIn*0.0254;
-    const wKg = latestBW*0.453592;
     const bmiVal = latestBW/(totalIn*totalIn)*703;
     const bfPct = Math.max(5, 1.2*bmiVal+0.23*32-10.8-5.4);
-    const leanKg = wKg*(1-bfPct/100);
-    const nffmi = (leanKg/(hM*hM)) + 6.1*(1.8-hM);
-    ffmiStr = nffmi.toFixed(1);
+    const leanKg = latestBW*0.453592*(1-bfPct/100);
+    ffmiStr = ((leanKg/(hM*hM)) + 6.1*(1.8-hM)).toFixed(1);
   }
 
-  // Recent notes
-  const notes = physio.filter(p=>p.notes).slice(-5).map(p=>`${p.date}: "${p.notes}"`).join('\n');
+  // Weekly averages for context
+  const weeksNum = parseFloat(spanWeeks)||1;
+  const liftDaysPerWeek = (liftDays/weeksNum).toFixed(1);
+  const runDaysPerWeek  = (runDays/weeksNum).toFixed(1);
+  const milesPerWeek    = (totalMiles/weeksNum).toFixed(1);
+  const volPerWeek      = Math.round(totalVol/weeksNum).toLocaleString();
 
-  const liftSessions = new Set(lifts.map(e=>e.date)).size;
-  const runSessions  = new Set(runs.map(e=>e.date)).size;
+  return `You are a strength and conditioning coach. Analyse this athlete's training data and give specific, actionable recommendations.
 
-  return `You are a strength and conditioning coach analysing an athlete's performance data. Be specific, data-driven, and actionable. The athlete is a 32-year-old male pilot (hybrid athlete — combines heavy compound lifting with running), currently on a body recomposition cut aiming to lose fat while maintaining strength and improving running fitness. Height: ${state.heightFt}'${state.heightIn||0}". Current weight: ${latestBW||'unknown'}lbs. FFMI: ${ffmiStr}.
+ATHLETE: 32yo male pilot, hybrid athlete on a body recomposition cut (lose fat, maintain strength, improve running).
+Height: ${state.heightFt}'${state.heightIn||0}" | Current weight: ${latestBW||'unknown'}lbs | FFMI: ${ffmiStr}
+Fitness class: ${getFitnessClass(state.attrs).name} | Level ${state.level}
 
-PERIOD: ${periodLabel} (${fromStr} to ${toStr})
+ANALYSIS PERIOD: ${periodLabel} — ${fromStr} to ${toStr} (${spanWeeks} weeks)
 
-LIFTING DATA:
-${lifts.length} total lift entries across ${liftSessions} training days
-Total volume: ${lifts.reduce((s,e)=>s+(e.totalVol||0),0).toLocaleString()}lbs
-${liftSummary || 'No lift data for this period'}
+─── TRAINING FREQUENCY ───
+Total active days: ${totalDays} across ${spanWeeks} weeks
+Lift days: ${liftDays} (${liftDaysPerWeek}/week avg) | Run days: ${runDays} (${runDaysPerWeek}/week avg)
+Lift/Run split: ${Math.round(liftDays/(totalDays||1)*100)}% lifting / ${Math.round(runDays/(totalDays||1)*100)}% running
 
-RUNNING DATA:
-${runs.length} runs across ${runSessions} days
-Total: ${totalMiles.toFixed(1)} miles
-Avg pace: ${avgPaceStr}
-Run types: ${Object.entries(runTypes).map(([k,v])=>`${k}(${v})`).join(', ')||'none'}
-Zone time: ${zoneSummary||'no zone data'}
+─── LIFTING (${liftDays} sessions, ${lifts.length} exercises logged) ───
+Total volume: ${totalVol.toLocaleString()}lbs (${volPerWeek}lbs/week avg)
+Exercise breakdown (E1RM trend first session → last session):
+${liftLines}
 
-PHYSIOLOGICAL DATA:
-Avg sleep score: ${avgSleep}/100
-Avg pre-session fatigue: ${avgFatigue}/10
+─── RUNNING (${runDays} sessions) ───
+Total: ${totalMiles.toFixed(1)} miles (${milesPerWeek} miles/week avg)
+Avg pace: ${avgPaceStr}${avgHR ? ` | Avg HR: ${avgHR}bpm` : ''}
+Intensity split: ${intensityRatio}% hard (${hardMiles.toFixed(1)}mi tempo/intervals) / ${100-intensityRatio}% easy (${easyMiles.toFixed(1)}mi)
+Run type breakdown: ${Object.entries(runTypeCount).map(([k,v])=>`${k}: ${v}`).join(', ')||'none'}
+
+─── RECOVERY & PHYSIOLOGY ───
+Sleep score: ${avgSleep}/100${sleepRange} (${sleepEntries.length} logged nights)
+Pre-session fatigue: ${avgFatigue}/10 (${fatigueEntries.length} logged sessions)
 Bodyweight trend: ${bwTrend}
-${notes ? 'Session notes:\n'+notes : ''}
+${recentNotes ? 'Recent session notes:\n'+recentNotes : 'No session notes logged'}
 
-Please provide a structured analysis with these exact sections:
-1. PERFORMANCE SUMMARY — 2-3 sentences on overall trend this period
-2. LIFTING ANALYSIS — what's progressing, what's stalling, E1RM trends
-3. RUNNING ANALYSIS — volume, intensity distribution, aerobic efficiency
-4. RECOVERY & READINESS — sleep/fatigue patterns and their impact
-5. BODY COMPOSITION — weight/FFMI trend, cut progress assessment
-6. NEXT WEEK RECOMMENDATIONS — specific, actionable: sets/reps targets, run types, adjustments
-7. WATCH OUT FOR — 1-2 red flags or risk factors to monitor
+─── IMPORTANT CONTEXT ───
+- Pilot schedule: irregular hours, hotel gym sessions when on rotation
+- Cut phase: prioritising fat loss while maintaining strength
+- Goal: sub-6min mile while maintaining compound lift numbers
+- Hotel gym sessions are equipment-limited (dumbbells, smith machine, cables)
 
-Be direct and specific. Use the actual numbers from the data. Keep each section concise — 3-5 sentences max.`;
+Please provide analysis in these exact sections:
+1. PERFORMANCE SUMMARY — 2-3 sentences on overall trend
+2. LIFTING ANALYSIS — what's progressing, stalling, key E1RM trends
+3. RUNNING ANALYSIS — volume, intensity distribution, pace vs HR efficiency
+4. RECOVERY & READINESS — sleep/fatigue impact on performance
+5. BODY COMPOSITION — weight/FFMI trend, cut progress
+6. NEXT WEEK RECOMMENDATIONS — specific sets/reps/weights, run types and paces
+7. WATCH OUT FOR — 1-2 red flags to monitor
+
+Be direct. Use the actual numbers. 3-5 sentences per section max.`;
 }
 
 async function runAnalysis(period) {
@@ -3394,6 +3868,91 @@ function setHomeGym(lat, lon) {
   showToast('🏠 Home Gym location saved');
 }
 
+// ─── COPY LAST WORKOUT ────────────────────────────────────────────────────────
+function copyLastWorkout() {
+  const allDates = [
+    ...state.liftLog.map(e=>e.date),
+    ...state.runLog.map(e=>e.date)
+  ].sort((a,b)=>b.localeCompare(a));
+
+  if (!allDates.length) { showToast('No workouts logged yet'); return; }
+  const lastDate = allDates[0];
+
+  const lifts  = state.liftLog.filter(e=>e.date===lastDate).sort((a,b)=>a.date.localeCompare(b.date));
+  const runs   = state.runLog.filter(e=>e.date===lastDate).sort((a,b)=>a.date.localeCompare(b.date));
+  const physio = (state.physioLog||[]).find(e=>e.date===lastDate);
+  const latestBW = physio?.bw || (state.bodyWeightLog||[]).slice(-1)[0]?.weight;
+
+  function esc(v){
+    if(v===null||v===undefined)return'';
+    const s=String(v);
+    return(s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s;
+  }
+
+  // Context header rows (spans full width)
+  const liftColCount = 15;
+  const runColCount  = 22;
+  const totalCols    = liftColCount + 1 + runColCount;
+  const emptyRow     = new Array(totalCols).fill('').map(esc).join(',');
+
+  const contextLines = [];
+  contextLines.push(`IRONLOG Workout — ${lastDate}`);
+  contextLines.push(`Athlete: ${state.name||'Athlete'} · Age 32 · ${state.heightFt}'${state.heightIn||0}" · ${latestBW||'?'}lbs`);
+  if (physio) {
+    const parts = [];
+    if (physio.sleepScore) parts.push(`Sleep: ${physio.sleepScore}/100`);
+    if (physio.sleep) parts.push(`${physio.sleep.slice(0,2)}h${physio.sleep.slice(2)}m`);
+    if (physio.fatigue) parts.push(`Fatigue: ${physio.fatigue}/10`);
+    if (parts.length) contextLines.push(parts.join(' · '));
+    if (physio.notes) contextLines.push(`Notes: ${physio.notes}`);
+  }
+  contextLines.push(`Goals: ${state.trainingGoals||'Hybrid athlete — maintain strength, improve running, sub-6min mile'}`);
+  contextLines.push(`Level ${state.level} · STR ${state.attrs.str} · END ${state.attrs.end} · SPD ${state.attrs.spd} · REC ${state.attrs.rec}`);
+
+  // Column headers
+  const liftCols = ['Date','Exercise','Pattern','Top Weight','Reps','Total Reps','Sets Detail (RPE)','Sets','E1RM','Rel Str','Location','Bodyweight','Sleep Dur','Sleep Score','Notes'];
+  const runCols  = ['Date','Run Type','Distance (mi)','Working Dist (mi)','Time (min)','Avg Pace','Work Speed','Rest Speed','# Intervals','Int Dur (s)','Rest Dur (s)','Incline (%)','W/U+C/D (mi)','Avg HR','HR Zone','RPE','Z1','Z2','Z3','Z4','Z5','XP'];
+  const sep = [''];
+
+  // Lift rows
+  const liftRows = lifts.map(l=>{
+    const e1rm = l.weight&&l.reps ? (l.weight*(1+l.reps/30)).toFixed(1) : '';
+    const rel  = e1rm&&latestBW ? (parseFloat(e1rm)/latestBW).toFixed(2)+'xBW' : '';
+    const p    = physio||{};
+    return [l.date,l.exercise,l.pattern,l.weight||'',l.reps||'',l.totalReps||'',l.setsDetail||'',l.sets||'',e1rm,rel,l.location,p.bw||'',p.sleep||'',p.sleepScore||'',p.notes||''];
+  });
+
+  // Run rows
+  const runRows = runs.map(r=>{
+    const paceDist = (r.workingDist&&r.workingDist>0) ? r.workingDist : r.dist;
+    const paceVal  = r.time&&paceDist ? (r.time/paceDist) : null;
+    const paceStr  = paceVal ? `${Math.floor(paceVal)}:${String(Math.round((paceVal%1)*60)).padStart(2,'0')}` : '';
+    const hrZone   = r.hr ? getHRZone(r.hr) : null;
+    return [r.date,r.type,r.dist,r.workingDist||r.dist,r.time||'',paceStr,r.intSpeed||'',r.intRestSpeed||'',r.intCount||'',r.intDuration||'',r.intRest||'',r.incline||'',r.warmup||'',r.hr||'',hrZone?`Z${hrZone.z} ${hrZone.name}`:'',r.rpe||'',r.zones?.z1||'',r.zones?.z2||'',r.zones?.z3||'',r.zones?.z4||'',r.zones?.z5||'',r.xp||''];
+  });
+
+  const emptyLift = new Array(liftCols.length).fill('');
+  const emptyRun  = new Array(runCols.length).fill('');
+  const totalRows = Math.max(liftRows.length, runRows.length);
+
+  const csvRows = [];
+  // Context block
+  contextLines.forEach(line => csvRows.push(esc(line)));
+  csvRows.push('');
+  // Header
+  csvRows.push([...liftCols,...sep,...runCols].map(esc).join(','));
+  // Data
+  for (let i = 0; i < totalRows; i++) {
+    const l = liftRows[i] || emptyLift;
+    const r = runRows[i]  || emptyRun;
+    csvRows.push([...l,...sep,...r].map(esc).join(','));
+  }
+
+  const text = csvRows.join('\n');
+  copyToClipboard(text);
+  showToast(`📊 ${lastDate} copied — paste into any AI or spreadsheet`);
+}
+
 // ─── CLIPBOARD / SHARE ────────────────────────────────────────────────────────
 function shareWeeklySummary() {
   const now = new Date();
@@ -3482,6 +4041,63 @@ function resetToSeed() {
 let toastTimer;
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800);}
 
+// ─── AUTO BACKUP ──────────────────────────────────────────────────────────────
+function checkWeeklyAutoExport() {
+  try {
+    const lastExport = localStorage.getItem('ironlog_last_autoexport');
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    if (lastExport && now - parseInt(lastExport) < sevenDays) return; // Not time yet
+
+    // Only export if there's actual data
+    if (!state.liftLog.length && !state.runLog.length) return;
+
+    // Build combined CSV (all data)
+    const allDates = [...new Set([...state.liftLog.map(e=>e.date),...state.runLog.map(e=>e.date)])].sort();
+    if (!allDates.length) return;
+
+    // Reuse existing export logic for all-time data
+    const lifts = state.liftLog;
+    const runs  = state.runLog;
+
+    function row(arr) { return arr.map(v=>'"'+(v==null?'':String(v).replace(/"/g,'""'))+'"').join(','); }
+    const lHdr = row(['Date','Exercise Name','Movement Pattern','Top Weight','Best Set # of Reps','Total Working Sets','Sets Detail (with RPE)','E1RM','Location','Bodyweight']);
+    const lRows = lifts.map(e=>{
+      const bw = (state.bodyWeightLog||[]).find(b=>b.date===e.date)?.weight||'';
+      const e1rm = e.weight ? Math.round(e.weight*(1+(e.reps||1)/30)) : '';
+      return row([e.date,e.exercise,e.pattern||'',e.weight||'',e.reps||'',e.sets||'',e.setsDetail||'',e1rm,e.location||'',bw]);
+    });
+    const rHdr = row(['Date','Run Type','Distance (miles)','Time (min)','Avg HR','RPE','XP']);
+    const rRows = runs.map(e=>row([e.date,e.type,e.dist,e.time||'',e.hr||'',e.rpe||'',e.xp]));
+
+    const csv = [
+      '# IRONLOG Auto-Backup — ' + new Date().toLocaleDateString('en-CA'),
+      '# ' + state.liftLog.length + ' lifts · ' + state.runLog.length + ' runs · Level ' + state.level,
+      '',
+      '## LIFTS',
+      lHdr,
+      ...lRows,
+      '',
+      '## RUNS',
+      rHdr,
+      ...rRows,
+    ].join('\r\n');
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    a.download = 'IRONLOG_backup.csv'; // Same filename every time
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 1000);
+
+    localStorage.setItem('ironlog_last_autoexport', String(now));
+    showToast('📦 Weekly backup saved — IRONLOG_backup.csv');
+  } catch(e) {
+    console.warn('Auto-export failed:', e);
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Migrate existing state without height fields
 if (state.heightFt === undefined) { state.heightFt = 0; state.heightIn = 0; }
@@ -3490,6 +4106,7 @@ if (!state.physioLog) state.physioLog = [];
 if (!state.trackedLifts) state.trackedLifts = JSON.parse(JSON.stringify(DEFAULT_TRACKED_LIFTS));
 if (state.trainingGoals === undefined) { state.trainingGoals = ''; state.trainingPlan = null; state.goalsUpdated = null; }
 if (state.homeGym === undefined) state.homeGym = null;
+if (!state.customExercises) state.customExercises = [];
 
 document.getElementById('dateDisplay').textContent=new Date().toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric',year:'numeric'}).toUpperCase();
 const today=todayStr();
@@ -3508,6 +4125,7 @@ document.addEventListener('click', e=>{
 });
 
 checkAchievements();recalcAttrs();addSetRow();renderAll();
+populateExerciseDropdown();
 window.addEventListener('resize', ()=>{ clearTimeout(window._resizeChart); window._resizeChart=setTimeout(renderCharts,150); });
 // Restore saved API key
 try { const k=localStorage.getItem('ironlog_apikey'); if(k) document.getElementById('analysisApiKey').value=k; } catch(e){}
