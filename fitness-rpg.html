@@ -632,13 +632,21 @@ function getFitnessClass(attrs) {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
+const BLANK = {
+  xp:0, level:1, name:'ATHLETE',
+  liftSessions:0, runSessions:0, totalSessions:0,
+  totalVolumeLbs:0, totalMiles:0,
+  attrs:{str:5,end:5,spd:5,rec:5},
+  bodyWeightLog:[], liftLog:[], runLog:[],
+  unlockedAchievements:[],
+};
 let state = (() => {
-  const saved = localStorage.getItem('ironlog_v6');
+  const saved = localStorage.getItem('ironlog_v7');
   if (saved) { try { const s=JSON.parse(saved); if (!s.bodyWeightLog) s.bodyWeightLog=[]; return s; } catch(e){} }
-  return JSON.parse(JSON.stringify(SEED));
+  return JSON.parse(JSON.stringify(BLANK));
 })();
 
-function save() { localStorage.setItem('ironlog_v6',JSON.stringify(state)); }
+function save() { localStorage.setItem('ironlog_v7',JSON.stringify(state)); }
 function xpForLevel(l) { return Math.floor(100*Math.pow(l,1.5)); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
@@ -1199,12 +1207,12 @@ document.addEventListener('click',()=>{document.querySelectorAll('.hint.tip-open
 function resetToSeed() {
   const choice = confirm("OK = Wipe everything, start fresh at Level 1\nCancel = Restore spreadsheet import data");
   if (choice) {
-    ["ironlog_v4","ironlog_v5","ironlog_v6"].forEach(k=>localStorage.removeItem(k));
-    state = {xp:0,level:1,name:"ATHLETE",liftSessions:0,runSessions:0,totalSessions:0,totalVolumeLbs:0,totalMiles:0,attrs:{str:5,end:5,spd:5,rec:5},bodyWeightLog:[],liftLog:[],runLog:[],unlockedAchievements:[]};
+    ["ironlog_v4","ironlog_v5","ironlog_v6","ironlog_v7"].forEach(k=>localStorage.removeItem(k));
+    state = JSON.parse(JSON.stringify(BLANK));
     recalcAttrs(); save(); renderAll();
     showToast("Fresh start — import your CSV to load data");
   } else {
-    ["ironlog_v4","ironlog_v5","ironlog_v6"].forEach(k=>localStorage.removeItem(k));
+    ["ironlog_v4","ironlog_v5","ironlog_v6","ironlog_v7"].forEach(k=>localStorage.removeItem(k));
     state = JSON.parse(JSON.stringify(SEED));
     recalcAttrs(); checkAchievements(); save(); renderAll();
     showToast("Restored to spreadsheet data");
