@@ -102,7 +102,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
 .char-top { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
 .avatar { width: 68px; height: 68px; border-radius: 50%; border: 2px solid var(--border2); background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 32px; flex-shrink: 0; transition: border-color 0.3s, box-shadow 0.3s; }
 .avatar.elite { border-color: var(--accent); box-shadow: 0 0 20px rgba(255,107,53,0.2); }
-.char-info { flex: 1; min-width: 0; }
+.char-info { flex: 1; min-width: 0; position: relative; }
 .char-name-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
 .char-name-wrap { display: flex; align-items: center; gap: 6px; }
 .char-name { font-size: 20px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: -0.5px; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-color 0.15s; }
@@ -483,7 +483,9 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
         <div class="level-pill" id="levelBadge">LVL 1</div>
         <div id="prestigeBadge" style="display:none;font-family:var(--mono);font-size:10px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#ff6b35);color:#000;padding:2px 8px;border-radius:20px;flex-shrink:0"></div>
       </div>
-      <div class="fitness-class" id="fitnessClass">Import your data to unlock</div>
+      <div class="fitness-class" id="fitnessClass" onclick="showClassTooltip(event)" style="cursor:pointer" title="Tap to see class requirements">Import your data to unlock</div>
+      <!-- Class requirements tooltip -->
+      <div id="classTooltip" style="display:none;position:absolute;z-index:200;background:var(--surface3);border:1px solid var(--border2);border-radius:10px;padding:14px;width:260px;box-shadow:0 8px 32px rgba(0,0,0,0.5);left:0;margin-top:4px"></div>
       <div class="xp-row"><span class="xp-label">XP</span><span class="xp-label" id="xpLabel">0 / 100</span></div>
       <!-- XP bar: base progress + optional prestige overlay -->
       <div class="xp-bar" style="position:relative">
@@ -999,19 +1001,160 @@ const ACHIEVEMENTS = [
 function getFitnessClass(attrs) {
   const {str,end,spd,rec} = attrs;
   const avg = (str+end+spd+rec)/4;
-  const strDom=str>avg*1.2, endDom=end>avg*1.2, spdDom=spd>avg*1.2;
-  const spread = Math.max(str,end,spd,rec)-Math.min(str,end,spd,rec);
-  const balanced = spread < 15 || [strDom,endDom,spdDom].filter(Boolean).length>=2;
-  if (balanced && avg>20) return {name:'Hybrid Athlete',emoji:'🔱',desc:'Balanced across all disciplines'};
-  if (strDom&&endDom&&!spdDom) return {name:'Bodybuilder',emoji:'💪',desc:'High strength & endurance base'};
-  if (endDom&&spdDom&&!strDom) return {name:'Runner',emoji:'🏃',desc:'Cardiovascular specialist'};
-  if (strDom&&!endDom) return {name:'Powerlifter',emoji:'🏋️',desc:'Strength & consistency driven'};
-  if (spdDom&&!strDom) return {name:'Sprinter',emoji:'⚡',desc:'Speed & intensity focused'};
-  if (endDom&&!strDom) return {name:'Endurance Athlete',emoji:'🎽',desc:'Long distance specialist'};
-  return {name:'Developing Athlete',emoji:'🌱',desc:'Building your base — keep going'};
+  const spread = Math.max(str,end,spd,rec) - Math.min(str,end,spd,rec);
+
+  // Use session ratio as primary hybrid signal
+  const totalSess = (state.liftSessions||0) + (state.runSessions||0);
+  const runRatio = totalSess > 0 ? state.runSessions / totalSess : 0;
+  const isSessionBalanced = runRatio >= 0.28 && runRatio <= 0.72;
+
+  // Attr dominance
+  const strDom = str > avg*1.2;
+  const endDom = end > avg*1.2;
+  const spdDom = spd > avg*1.2;
+  const recDom = rec > avg*1.2;
+  const attrBalanced = spread < 20;
+
+  // Hybrid: balanced session mix AND reasonable across attrs
+  if (isSessionBalanced && attrBalanced && avg > 15)
+    return {name:'Hybrid Athlete', emoji:'🔱', desc:'Balanced strength & conditioning'};
+  if (isSessionBalanced && avg > 15)
+    return {name:'Hybrid Athlete', emoji:'🔱', desc:'Balanced strength & conditioning'};
+
+  // Running-dominant
+  if (runRatio > 0.72) {
+    if (spdDom) return {name:'Sprinter', emoji:'⚡', desc:'Speed & intensity focused'};
+    return {name:'Endurance Athlete', emoji:'🎽', desc:'Long distance specialist'};
+  }
+
+  // Lifting-dominant
+  if (runRatio < 0.28) {
+    if (strDom && recDom) return {name:'Powerlifter', emoji:'🏋️', desc:'Strength & consistency driven'};
+    if (strDom)           return {name:'Bodybuilder', emoji:'💪', desc:'High volume strength focus'};
+    return {name:'Powerlifter', emoji:'🏋️', desc:'Strength & consistency driven'};
+  }
+
+  // Mixed but attr-skewed
+  if (spdDom) return {name:'Sprinter', emoji:'⚡', desc:'Speed & intensity focused'};
+  if (endDom) return {name:'Runner',   emoji:'🏃', desc:'Cardiovascular specialist'};
+  if (strDom) return {name:'Powerlifter', emoji:'🏋️', desc:'Strength focused'};
+  return {name:'Developing Athlete', emoji:'🌱', desc:'Building your base — keep going'};
 }
 
-// ─── STATE ────────────────────────────────────────────────────────────────────
+// Returns requirements for each class — used by tooltip
+function getClassRequirements() {
+  const totalSess = (state.liftSessions||0) + (state.runSessions||0);
+  const runRatio = totalSess > 0 ? state.runSessions / totalSess : 0;
+  const {str,end,spd,rec} = state.attrs;
+  const spread = Math.max(str,end,spd,rec) - Math.min(str,end,spd,rec);
+  const avg = (str+end+spd+rec)/4;
+  const current = getFitnessClass(state.attrs);
+
+  const classes = [
+    {
+      name:'Hybrid Athlete', emoji:'🔱',
+      check: () => {
+        const isBalanced = runRatio >= 0.28 && runRatio <= 0.72;
+        const reqs = [];
+        if (!isBalanced) {
+          const liftPct = Math.round((state.liftSessions/totalSess)*100);
+          const runPct  = Math.round((state.runSessions/totalSess)*100);
+          reqs.push(`Session mix: ${liftPct}% lift / ${runPct}% run — need 28–72% running`);
+        }
+        if (avg <= 15) reqs.push(`Average attr > 15 (currently ${avg.toFixed(0)})`);
+        return reqs;
+      }
+    },
+    {
+      name:'Powerlifter', emoji:'🏋️',
+      check: () => {
+        const reqs = [];
+        if (runRatio >= 0.28) {
+          const extraLifts = Math.ceil((state.liftSessions - state.runSessions * 2.57) + 1);
+          reqs.push(`Need >72% lifting sessions (currently ${Math.round((1-runRatio)*100)}%)`);
+        }
+        const strNeeded = Math.ceil(avg * 1.2);
+        if (str < strNeeded) {
+          const volNeeded = Math.round(1_250_000 * Math.pow((strNeeded-1)/98, 2));
+          const more = Math.max(0, volNeeded - state.totalVolumeLbs);
+          reqs.push(`STR needs ${strNeeded} (${str} now) — ~${Math.ceil(more/5000)} more lift sessions`);
+        }
+        return reqs;
+      }
+    },
+    {
+      name:'Endurance Athlete', emoji:'🎽',
+      check: () => {
+        const reqs = [];
+        if (runRatio <= 0.72) reqs.push(`Need >72% running sessions (currently ${Math.round(runRatio*100)}%)`);
+        const endNeeded = Math.ceil(avg * 1.2);
+        if (end < endNeeded) {
+          const milesNeeded = Math.round(375 * Math.pow((endNeeded-1)/98, 2));
+          const more = Math.max(0, milesNeeded - state.totalMiles);
+          reqs.push(`END needs ${endNeeded} (${end} now) — ~${Math.ceil(more/2)} more runs`);
+        }
+        return reqs;
+      }
+    },
+    {
+      name:'Sprinter', emoji:'⚡',
+      check: () => {
+        const reqs = [];
+        const spdNeeded = Math.ceil(avg * 1.2);
+        if (spd < spdNeeded) {
+          const hardMilesNeeded = Math.round(112 * Math.pow((spdNeeded-1)/98, 2));
+          const hardMilesCurrent = state.runLog.reduce((s,r)=>s+((r.type.includes('Interval')||r.type.includes('Tempo'))?r.dist:0),0);
+          const more = Math.max(0, hardMilesNeeded - hardMilesCurrent);
+          reqs.push(`SPD needs ${spdNeeded} (${spd} now) — ~${Math.ceil(more/1.5)} more tempo/interval runs`);
+        }
+        if (runRatio <= 0.72) reqs.push(`Need >72% running sessions (currently ${Math.round(runRatio*100)}%)`);
+        return reqs;
+      }
+    },
+  ];
+
+  return classes.map(c => ({
+    name: c.name,
+    emoji: c.emoji,
+    isCurrent: c.name === current.name,
+    requirements: c.check()
+  }));
+}
+
+function showClassTooltip(e) {
+  const tooltip = document.getElementById('classTooltip');
+  if (!tooltip) return;
+  if (tooltip.style.display !== 'none') { tooltip.style.display = 'none'; return; }
+
+  const classes = getClassRequirements();
+  const current = getFitnessClass(state.attrs);
+
+  let html = `<div style="font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--dim2);text-transform:uppercase;margin-bottom:10px">Fitness Class Guide</div>`;
+
+  classes.forEach(c => {
+    const isCurrent = c.isCurrent;
+    const done = c.requirements.length === 0;
+    const borderCol = isCurrent ? 'var(--accent)' : done ? 'var(--teal)' : 'var(--border2)';
+    html += `<div style="margin-bottom:8px;padding:8px 10px;border:1px solid ${borderCol};border-radius:6px;background:${isCurrent?'rgba(255,107,53,0.08)':'transparent'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${c.requirements.length?'6px':'0'}">
+        <div style="font-size:12px;font-weight:700;color:${isCurrent?'var(--accent)':'var(--text2)'}">${c.emoji} ${c.name}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${isCurrent?'var(--accent)':done?'var(--teal)':'var(--dim)'}">${isCurrent?'CURRENT':done?'✓ MET':'—'}</div>
+      </div>
+      ${c.requirements.map(r=>`<div style="font-family:var(--mono);font-size:9px;color:var(--dim2);line-height:1.5;margin-top:2px">→ ${r}</div>`).join('')}
+    </div>`;
+  });
+
+  html += `<div style="font-family:var(--mono);font-size:8px;color:var(--dim);margin-top:6px;text-align:center">Tap anywhere to close</div>`;
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function close(ev) {
+      if (!tooltip.contains(ev.target)) { tooltip.style.display='none'; document.removeEventListener('click',close); }
+    });
+  }, 10);
+}
 const BLANK = {
   xp:0, level:1, name:'ATHLETE',
   heightFt:0, heightIn:0,
@@ -1775,8 +1918,63 @@ function processImportFile(file){
       const isLifts=headers.includes('Exercise Name'),isRuns=headers.includes('Distance (miles)');
       const lifts=[],runs=[];
       if(isLifts){
-        const c={date:headers.indexOf('Date'),name:headers.indexOf('Exercise Name'),pattern:headers.indexOf('Movement Pattern'),weight:headers.indexOf('Top Weight'),reps:headers.indexOf('Best Set # of Reps'),rpe:headers.indexOf('RPE (best set)'),sets:headers.indexOf('Total Working Sets'),location:headers.indexOf('Location (Home/Hotel)'),setsText:headers.indexOf('Sets')};
-        for(let i=1;i<rows.length;i++){const r=rows[i];if(!r[c.date]||!r[c.name])continue;const weight=parseFloat(r[c.weight])||0,reps=parseFloat(r[c.reps])||1,sets=parseFloat(r[c.sets])||(r[c.setsText]?String(r[c.setsText]).split(',').length:3);const xp=Math.round(weight*sets*reps/100*2+sets*3);lifts.push({date:fmtDate(r[c.date]),exercise:String(r[c.name]).trim(),pattern:r[c.pattern]?String(r[c.pattern]).trim():'',weight,reps,sets,rpe:parseFloat(r[c.rpe])||null,location:r[c.location]?String(r[c.location]).trim():'Home Base Gym',xp,totalVol:weight*sets*reps,setsDetail:r[c.setsText]?String(r[c.setsText]).trim():''});}
+        const c={
+          date:headers.indexOf('Date'),
+          name:headers.indexOf('Exercise Name'),
+          pattern:headers.indexOf('Movement Pattern'),
+          weight:headers.indexOf('Top Weight'),
+          reps:headers.indexOf('Best Set # of Reps'),
+          rpe:headers.indexOf('RPE (best set)'),
+          sets:headers.indexOf('Total Working Sets'),
+          location:headers.indexOf('Location (Home/Hotel)'),
+          setsText:headers.indexOf('Sets'),
+          bw:headers.indexOf('Bodyweight'),
+          physioNotes:headers.indexOf('Physiological Notes'),
+          sleepDur:headers.indexOf('Sleep Duration'),
+          sleepScore:headers.indexOf('Sleep Score'),
+        };
+        const physioMap = {}; // date -> physio entry
+        for(let i=1;i<rows.length;i++){
+          const r=rows[i];
+          if(!r[c.date]||!r[c.name])continue;
+          const weight=parseFloat(r[c.weight])||0,reps=parseFloat(r[c.reps])||1,sets=parseFloat(r[c.sets])||(r[c.setsText]?String(r[c.setsText]).split(',').length:3);
+          const xp=Math.round(weight*sets*reps/100*2+sets*3);
+          lifts.push({date:fmtDate(r[c.date]),exercise:String(r[c.name]).trim(),pattern:r[c.pattern]?String(r[c.pattern]).trim():'',weight,reps,sets,rpe:parseFloat(r[c.rpe])||null,location:r[c.location]?String(r[c.location]).trim():'Home Base Gym',xp,totalVol:weight*sets*reps,setsDetail:r[c.setsText]?String(r[c.setsText]).trim():''});
+
+          // Parse physio data for this date
+          const dateKey = fmtDate(r[c.date]);
+          if(!physioMap[dateKey]) physioMap[dateKey] = {date:dateKey};
+          const entry = physioMap[dateKey];
+
+          // BW from dedicated column
+          const bwVal = c.bw >= 0 ? parseFloat(r[c.bw]) : null;
+          if(bwVal && bwVal > 50) entry.bw = bwVal;
+
+          // Sleep from dedicated columns (exported format)
+          if(c.sleepScore >= 0 && r[c.sleepScore]) entry.sleepScore = parseFloat(r[c.sleepScore])||null;
+          if(c.sleepDur >= 0 && r[c.sleepDur]) entry.sleep = String(r[c.sleepDur]).trim()||null;
+
+          // Parse sleep from physiological notes (your spreadsheet format)
+          const notes = c.physioNotes >= 0 ? (r[c.physioNotes]||'') : '';
+          if(notes) {
+            entry.notes = String(notes).trim();
+            // Parse duration: "7hr50m", "7h50m", "7h28m sleep", "8hr43m of sleep"
+            const durMatch = String(notes).match(/(\d+)\s*h(?:r|rs|our|ours)?\s*(\d+)\s*m/i);
+            if(durMatch && !entry.sleep) {
+              const hrs = durMatch[1].padStart(2,'0');
+              const mins = durMatch[2].padStart(2,'0');
+              entry.sleep = hrs + mins; // hhmm format
+            }
+            // Parse score: "score 90", "sleep score 86", "score 74"
+            const scoreMatch = String(notes).match(/(?:sleep\s+)?score\s+(\d{2,3})/i);
+            if(scoreMatch && !entry.sleepScore) {
+              entry.sleepScore = parseInt(scoreMatch[1]);
+            }
+          }
+        }
+        // Merge physio entries into parsedImport
+        parsedImport = parsedImport || {};
+        parsedImport.physio = Object.values(physioMap).filter(e => e.bw || e.sleep || e.sleepScore || e.notes);
       }
       if(isRuns){
         const c={date:headers.indexOf('Date'),type:headers.indexOf('Run Type (Easy / Tempo / Interval / Long)'),dist:headers.indexOf('Distance (miles)'),time:headers.indexOf('Total Time (minutes)'),hr:headers.indexOf('Avg HR'),rpe:headers.indexOf('RPE')};
