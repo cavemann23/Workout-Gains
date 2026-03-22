@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <title>IRONLOG</title>
 <style>
 :root {
@@ -776,7 +777,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       </div>
       <div class="field-row">
         <div class="field"><label>Distance (mi)</label><input type="number" id="runDist" placeholder="3" step="0.01" min="0" oninput="updateRunSummary()"></div>
-        <div class="field"><label>Time (min)</label><input type="number" id="runTime" placeholder="30" step="0.1" min="0" oninput="updateRunSummary()"></div>
+        <div class="field"><label>Time (mm:ss)</label><input type="text" id="runTime" placeholder="30:00" maxlength="7" oninput="updateRunSummary()" style="font-family:var(--mono)"></div>
       </div>
       <div class="field-row">
         <div class="field"><label>Avg HR (opt.)</label><input type="number" id="runHR" placeholder="155" min="0" oninput="updateRunSummary()"></div>
@@ -784,7 +785,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       </div>
       <div class="field-row">
         <div class="field"><label>Incline (%)</label><input type="number" id="runIncline" placeholder="1.5" step="0.5" min="0" max="30" oninput="updateRunSummary()"></div>
-        <div class="field"><label>W/U + C/D (mi)</label><input type="number" id="runWarmup" placeholder="0.5" step="0.01" min="0" oninput="updateRunSummary()" title="Warmup + cooldown miles — excluded from pace"></div>
+        <div class="field"><label>W/U + C/D (mi)</label><input type="number" id="runWarmup" placeholder="0.5" step="0.01" min="0" oninput="updateRunSummary()" title="Warmup + cooldown miles — included in total distance but excluded from pace calculation"></div>
       </div>
       <!-- ZONE TIME BREAKDOWN -->
       <div class="zone-fields" id="zoneFields">
@@ -1023,7 +1024,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
       <div class="import-drop-icon">📂</div>
       <div class="import-drop-label" id="importDropLabel">Tap to choose file<br><strong>.csv</strong> (Workout_Logs format)</div>
     </div>
-    <input type="file" id="importFileInput" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+    <input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
     <div class="import-preview" id="importPreview"><div class="import-preview-title">Preview</div><div class="import-preview-body" id="importPreviewText"></div></div>
     <div class="modal-opts" style="margin-bottom:14px">
       <label class="modal-opt selected" id="imode-merge"><input type="radio" name="importMode" value="merge" checked onchange="selectImportMode('merge')">
@@ -1936,8 +1937,8 @@ function updateSetSummary() {
   const avgRpe = valid.filter(r=>r.rpe).length ? (valid.filter(r=>r.rpe).reduce((s,r)=>s+r.rpe,0)/valid.filter(r=>r.rpe).length).toFixed(1) : null;
 
   const sets = bwEx
-    ? valid.map(r=>`BW+${parseFloat(r.weight)||0}×${r.reps}`+(r.rpe?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ')
-    : valid.map(r=>r.weight+'×'+r.reps+(r.rpe?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ');
+    ? valid.map(r=>`BW+${parseFloat(r.weight)||0}x${r.reps}`+(r.rpe?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ')
+    : valid.map(r=>r.weight+'x'+r.reps+(r.rpe?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ');
 
   const relLine = bw ? `<span style="color:var(--teal)">Rel: <b>${(topEff/bw).toFixed(2)}×BW</b></span> · ` : '';
   const rpeLine = avgRpe ? ` · Avg RPE: <b style="color:${getRPEColor(parseFloat(avgRpe))}">${avgRpe}</b>` : '';
@@ -2028,9 +2029,19 @@ function getHRZone(hr) {
   return HR_ZONES.find(z => hr >= z.min && hr <= z.max) || HR_ZONES[4];
 }
 
+// Parse mm:ss or plain minutes input → decimal minutes
+function parseTimeInput(val) {
+  if (!val) return 0;
+  val = String(val).trim();
+  const m = val.match(/^(\d+):(\d{1,2})$/);
+  if (m) return parseInt(m[1]) + parseInt(m[2]) / 60;
+  const f = parseFloat(val);
+  return isNaN(f) ? 0 : f;
+}
+
 function updateRunSummary() {
   const dist    = parseFloat(document.getElementById('runDist').value) || 0;
-  const time    = parseFloat(document.getElementById('runTime').value) || 0;
+  const time    = parseTimeInput(document.getElementById('runTime').value);
   const hr      = parseFloat(document.getElementById('runHR').value) || 0;
   const incline = parseFloat(document.getElementById('runIncline').value) || 0;
   const warmup  = parseFloat(document.getElementById('runWarmup').value) || 0;
@@ -2048,7 +2059,8 @@ function updateRunSummary() {
 
   // Distance breakdown if warmup logged
   if (warmup > 0) {
-    html += `Total: <b>${dist}mi</b> · Working: <b>${workingDist.toFixed(2)}mi</b> · W/U+C/D: <b>${warmup}mi</b><br>`;
+    const workingPreview = Math.max(0, dist - warmup).toFixed(2);
+    html += `Total: <b>${dist}mi</b> · Working (pace): <b>${workingPreview}mi</b> · W/U+C/D: <b>${warmup}mi</b><br>`;
   }
 
   // Incline
@@ -2130,8 +2142,8 @@ function logLift() {
   const topR=valid.filter(r=>effWeight(r)===topEff).reduce((m,r)=>Math.max(m,r.reps),0);
   const totalR=valid.reduce((s,r)=>s+r.reps,0);
   const setsDetail = bwEx
-    ? valid.map(r=>`BW+${parseFloat(r.weight)||0}×${r.reps}`+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ')
-    : valid.map(r=>r.weight+'×'+r.reps+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ');
+    ? valid.map(r=>`BW+${parseFloat(r.weight)||0}x${r.reps}`+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ')
+    : valid.map(r=>r.weight+'x'+r.reps+(r.rpe!=null?'@'+parseFloat(r.rpe).toFixed(1):'')).join(', ');
   const bestRpe = valid.reduce((best,r)=>r.rpe>best?r.rpe:best, 0) || null;
 
   // XP calculation
@@ -2140,15 +2152,17 @@ function logLift() {
   let xp;
   if (bwEx) {
     const totalReps = valid.reduce((s,r)=>s+r.reps, 0);
-    const addedWeightBonus = valid.reduce((s,r)=>s+(parseFloat(r.weight)||0)*r.reps, 0);
-    xp = Math.round((totalReps * 2) + (addedWeightBonus / 100) + workingSets * 2);
+    const addedWeightBonus = valid.reduce((s,r)=>s+(parseFloat(r.weight)||0), 0); // sum of added weights across sets
+    xp = Math.round(totalReps * 1.5 + workingSets * 4 + addedWeightBonus * 0.5);
   } else {
     xp = Math.round(totalVol/100*2 + workingSets*3);
   }
   state.totalVolumeLbs+=totalVol;
   addXP(xp);
-  state.liftLog.unshift({date:dateVal,exercise,pattern,location,rpe:bestRpe,xp,weight:topEff,reps:topR,sets:workingSets,totalReps:totalR,totalVol,setsDetail});
-  if(state.liftLog.length>200)state.liftLog.pop();
+  // repsAtTopWeight = sum of reps across all sets that used the top effective weight
+  const repsAtTopWeight = valid.filter(r=>effWeight(r)===topEff).reduce((s,r)=>s+r.reps, 0);
+  state.liftLog.unshift({date:dateVal,exercise,pattern,location,rpe:bestRpe,xp,weight:topEff,reps:topR,sets:workingSets,totalReps:totalR,repsAtTopWeight,totalVol,setsDetail});
+  if(state.liftLog.length>2000)state.liftLog.pop();
   recalcSessions(); recalcAttrs();
   checkAchievements();save();renderAll();
   showToast('+'+xp+' XP — '+exercise+' '+workingSets+' sets');
@@ -2161,7 +2175,7 @@ function toggleIntervalFields() {
 
 function logRun() {
   const dist    = parseFloat(document.getElementById('runDist').value)||0;
-  const time    = parseFloat(document.getElementById('runTime').value)||null;
+  const time    = parseTimeInput(document.getElementById('runTime').value)||null;
   const type    = document.getElementById('runType').value;
   const hr      = parseFloat(document.getElementById('runHR').value)||null;
   const rpe     = parseFloat(document.getElementById('runRPE').value)||null;
@@ -2182,23 +2196,27 @@ function logRun() {
   const intDuration  = isInt ? (parseFloat(document.getElementById('intDuration').value)||null)   : null;
   const intRest      = isInt ? (parseFloat(document.getElementById('intRest').value)||null)        : null;
 
-  // Working distance = total minus warmup/cooldown — used for pace
-  const workingDist = Math.max(0, dist - warmup);
+  // dist = TOTAL distance (counts toward mileage, XP, stats)
+  // workingDist = dist minus warmup/cooldown — pace is calculated from this only
+  const workingDist = warmup > 0 ? Math.max(0, Math.round((dist - warmup)*100)/100) : null;
 
   const multMap = {'Easy':1,'Tempo':1.5,'Interval':1.8,'Long':1.4,'Easy/Incline Walk':0.8,'Easy/Interval':1.3,'Easy/Tempo':1.2};
   const mult = multMap[type]||1;
-  const xp = Math.round(dist*1.60934*10*mult);
-  state.totalMiles += dist;
+  // XP based on total distance + time
+  const distXP = dist * 1.60934 * 15 * mult;
+  const timeXP = time ? time * mult * 1.5 : dist * 1.60934 * 5 * mult;
+  const xp = Math.round(distXP + timeXP);
+  state.totalMiles += dist;  // full distance counts
   addXP(xp);
   state.runLog.unshift({
     date:dateVal, type, dist:Math.round(dist*100)/100,
-    workingDist: warmup>0 ? Math.round(workingDist*100)/100 : null,
+    workingDist,
     warmup: warmup||null,
     time, hr, rpe, incline,
     intSpeed, intRestSpeed, intCount, intDuration, intRest,
     zones, xp
   });
-  if(state.runLog.length>200)state.runLog.pop();
+  if(state.runLog.length>2000)state.runLog.pop();
   recalcSessions(); recalcAttrs();
   checkAchievements(); save(); renderAll();
   const intS = intCount&&intDuration ? ' · '+intCount+'×'+intDuration+'s' : '';
@@ -2253,9 +2271,10 @@ function runExport(){
   // Column definitions
   const liftCols = [
     'Date','Exercise Name','Movement Pattern','Top Weight','Best Set # of Reps',
-    'Total Reps @ Top Weight','Sets Detail (with RPE)','Total Working Sets',
-    'Estimated 1RM','Relative Strength','Location','Bodyweight',
-    'Sleep Duration','Sleep Score','Physiological Notes'
+    'Total Reps @ Top Weight','Total Reps (All Sets)','Sets Detail (with RPE)',
+    'Total Working Sets','Total Volume (lbs)','Estimated 1RM','Relative Strength',
+    'RPE (best set)','Location','Bodyweight','Sleep Duration','Sleep Score',
+    'Fatigue (pre-session)','Physiological Notes'
   ];
   const runCols = [
     'Date','Run Type','Distance (mi)','Working Distance (mi)','Time (min)',
@@ -2265,16 +2284,51 @@ function runExport(){
   ];
 
   // Build lift rows
+  // Pre-sort bodyWeightLog ascending once for efficient BW lookup
+  const sortedBWLog = [...(state.bodyWeightLog||[])].sort((a,b)=>a.date.localeCompare(b.date));
+
   const liftRows = lifts.map(l=>{
     const e1rm = l.weight&&l.reps ? (l.weight*(1+l.reps/30)).toFixed(2) : '';
-    const bwLatest = (state.bodyWeightLog||[]).slice(-1)[0]?.weight||'';
-    const rel = e1rm&&bwLatest ? (parseFloat(e1rm)/bwLatest).toFixed(2) : '';
     const physio = (state.physioLog||[]).find(p=>p.date===l.date)||{};
+    // BW lookup: physio entry for that date → most recent BW log on or before that date → most recent overall
+    const sessionBW = physio.bw
+      || sortedBWLog.filter(e=>e.date<=l.date).slice(-1)[0]?.weight
+      || sortedBWLog.slice(-1)[0]?.weight
+      || '';
+    const isBW = l.exercise.toLowerCase().includes('pull-up') || l.exercise.toLowerCase().includes('dip');
+    const rel = e1rm && sessionBW && !isBW ? (parseFloat(e1rm)/parseFloat(sessionBW)).toFixed(2) : '';
+
+    // Total reps @ top weight — use stored value if available,
+    // otherwise count from setsDetail for historical entries
+    let repsAtTop = l.repsAtTopWeight;
+    if (!repsAtTop && l.setsDetail && l.weight) {
+      // Parse setsDetail to find sets at top weight and sum their reps
+      // Format: "225x4@9.5, 225x4@9.0, 185x8@8.0" or "BW+25x8@9.0"
+      const topW = l.weight;
+      let total = 0;
+      l.setsDetail.split(',').forEach(s => {
+        s = s.trim();
+        // Match patterns like "225x4" or "BW+25x8"
+        const m = s.match(/(?:BW\+[\d.]+|[\d.]+)x(\d+)/);
+        if (m) {
+          // Extract the weight part to check if it matches top weight
+          const wm = s.match(/^([\d.]+)x/);
+          if (wm && Math.abs(parseFloat(wm[1]) - topW) < 0.5) total += parseInt(m[1]);
+          // For BW exercises just take reps as-is since weight=0
+          else if (s.startsWith('BW+')) total += parseInt(m[1]);
+        }
+      });
+      repsAtTop = total || l.reps;
+    }
+    repsAtTop = repsAtTop || l.reps || '';
+
     return [
       l.date, l.exercise, l.pattern, l.weight||'', l.reps||'',
-      l.totalReps||l.reps||'', l.setsDetail||'', l.sets||'',
-      e1rm, rel, l.location, physio.bw||'',
-      physio.sleep||'', physio.sleepScore||'', physio.notes||''
+      repsAtTop, l.totalReps||'', l.setsDetail||'', l.sets||'',
+      l.totalVol||'', e1rm, rel, l.rpe||'',
+      l.location||'', physio.bw ? physio.bw : (sessionBW||''),
+      physio.sleep||'', physio.sleepScore||'',
+      physio.fatigue||'', physio.notes||''
     ];
   });
 
@@ -2327,7 +2381,74 @@ function runExport(){
   showToast('Exported '+lifts.length+' lifts, '+runs.length+' runs → '+filename);
 }
 
-// ─── IMPORT ───────────────────────────────────────────────────────────────────
+// ─── SETS DETAIL NORMALIZER ───────────────────────────────────────────────────
+// Cleans setsDetail strings from any import format into standard "225x4@9.5" notation
+function normalizeSetsDetail(raw, isBWEx) {
+  if (!raw) return '';
+  let s = String(raw).trim();
+
+  // Reject garbage — Excel date interpretations like "2007-08-07 00:00:00"
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return '';
+
+  // Fix encoding artifacts
+  s = s.replace(/\u00c3\u00d7/g,'x').replace(/\u00c3\u00b7/g,'x').replace(/\u00c3\u2014/g,'x').replace(/×/g,'x').replace(/Ã—/g,'x').replace(/Ã\u2014/g,'x');
+
+  // Normalise separators — semicolons and pipes to commas
+  s = s.replace(/;/g, ',');
+
+  // Handle BW-only rep lists like "12,10,9" or "10, 9, 7.5, 5" or "15,11,9,7"
+  // These are just rep counts with no weight — convert to BW+0xN format
+  if (isBWEx) {
+    // Check if entire string is just numbers and commas/spaces (no x or @)
+    if (/^[\d.,\s]+$/.test(s)) {
+      const repNums = s.split(',').map(v => v.trim()).filter(v => v && !isNaN(parseFloat(v)));
+      if (repNums.length > 0) {
+        return repNums.map(r => `BW+0x${Math.round(parseFloat(r))}`).join(', ');
+      }
+    }
+    // Handle "10@RPE9" or "10@9" format (RPE-annotated BW reps)
+    if (/^[\d.]+@/.test(s.split(',')[0].trim())) {
+      return s.split(',').map(seg => {
+        seg = seg.trim();
+        const m = seg.match(/^([\d.]+)@(?:RPE)?([\d.]+)/i);
+        if (m) return `BW+0x${Math.round(parseFloat(m[1]))}@${m[2]}`;
+        const r = parseFloat(seg);
+        return isNaN(r) ? '' : `BW+0x${Math.round(r)}`;
+      }).filter(Boolean).join(', ');
+    }
+    // Already has BW+ format — just clean it up
+    if (s.includes('BW+')) {
+      return s.split(',').map(seg => seg.trim()).filter(Boolean).join(', ');
+    }
+  }
+
+  // Standard format cleanup: "225x4@9.5" or "225x4" or "225 x 4 @ 9.5"
+  // Also handles old semicolon-RPE format: "135x12@8; 225x6@8.5"
+  const sets = s.split(',').map(seg => {
+    seg = seg.trim();
+    if (!seg) return '';
+
+    // Match weight x reps @ rpe — various spacing/formats
+    // e.g. "225x4@9.5" "225 x 4 @ 9.5" "225x4 @9.5" "BW+25x8@9"
+    const full = seg.match(/^(BW\+[\d.]+|[\d.]+)\s*[xX]\s*([\d.]+)\s*@\s*([\d.]+)/);
+    if (full) return `${full[1]}x${full[2]}@${full[3]}`;
+
+    const noRPE = seg.match(/^(BW\+[\d.]+|[\d.]+)\s*[xX]\s*([\d.]+)/);
+    if (noRPE) return `${noRPE[1]}x${noRPE[2]}`;
+
+    // Plain number with @RPE (BW exercise single rep count)
+    const rpeOnly = seg.match(/^([\d.]+)\s*@\s*(?:RPE)?\s*([\d.]+)/i);
+    if (rpeOnly && isBWEx) return `BW+0x${Math.round(parseFloat(rpeOnly[1]))}@${rpeOnly[2]}`;
+
+    // Plain number — BW rep count
+    if (/^[\d.]+$/.test(seg) && isBWEx) return `BW+0x${Math.round(parseFloat(seg))}`;
+
+    // Keep as-is if nothing matched (e.g. "Dropset: ...")
+    return seg;
+  }).filter(Boolean);
+
+  return sets.join(', ');
+}
 let importMode='merge',parsedImport=null;
 function openImportModal(){parsedImport=null;document.getElementById('importPreview').classList.remove('visible');document.getElementById('importConfirmBtn').disabled=true;document.getElementById('importConfirmBtn').style.opacity='0.4';document.getElementById('importFileInput').value='';document.getElementById('importDropLabel').innerHTML='Tap to choose file<br><strong>.csv</strong> (Workout_Logs format)';document.getElementById('importModal').classList.add('open');}
 function closeImportModal(){document.getElementById('importModal').classList.remove('open');}
@@ -2337,37 +2458,105 @@ function handleDragLeave(){document.getElementById('importDrop').classList.remov
 function handleDrop(e){e.preventDefault();document.getElementById('importDrop').classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)processImportFile(f);}
 function handleFileSelect(e){const f=e.target.files[0];if(f)processImportFile(f);}
 function processImportFile(file){
-  if(!file.name.toLowerCase().endsWith('.csv')){showToast('Please use a .csv file');return;}
+  const isXlsx = /\.(xlsx|xls)$/i.test(file.name);
+  const isCsv  = /\.csv$/i.test(file.name);
+  if(!isXlsx && !isCsv){showToast('Please use a .csv or .xlsx file');return;}
   const reader=new FileReader();reader.onerror=()=>showToast('File read error');
   reader.onload=e=>{
     try{
-      const rows=parseCSV(e.target.result);if(rows.length<2){showToast('No data found');return;}
+      let rows;
+      if(isXlsx){
+        if(typeof XLSX === 'undefined'){showToast('xlsx library not loaded — try CSV');return;}
+        const wb = XLSX.read(e.target.result, {type:'array', cellDates:true, cellNF:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        // Use raw:true to get actual values, then format manually
+        const raw = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+        rows = raw.map(row => row.map(cell => {
+          if(cell === null || cell === undefined || cell === '') return '';
+          // JS Date object (from cellDates:true) → YYYY-MM-DD
+          if(cell instanceof Date) {
+            // Check if it's a time-only value (date part is 1899-12-30 in Excel epoch)
+            if(cell.getFullYear() < 1900 || cell.getFullYear() === 1899) {
+              // Time value — return as HH:MM for pace fields
+              const h = cell.getHours(), m = cell.getMinutes();
+              return `${h}:${String(m).padStart(2,'0')}`;
+            }
+            return cell.toISOString().slice(0,10);
+          }
+          return String(cell).trim();
+        }));
+      } else {
+        rows = parseCSV(e.target.result);
+      }
+      if(rows.length<2){showToast('No data found');return;}
       const headers=rows[0].map(h=>h?String(h).trim():'');
-      const isLifts=headers.includes('Exercise Name'),isRuns=headers.includes('Distance (miles)');
+      // Detect format — new side-by-side IRONLOG export has both Exercise Name and Run Type in same header row
+      const isLifts = headers.includes('Exercise Name');
+      const isRuns  = headers.includes('Distance (miles)') || headers.includes('Distance (mi)') || headers.includes('Run Type') || headers.includes('Run Type (Easy / Tempo / Interval / Long)');
+      const isSideBySide = isLifts && isRuns; // new IRONLOG export format
       const lifts=[],runs=[];
       if(isLifts){
         const c={
           date:headers.indexOf('Date'),
+          // Column mapping — handle both old LIFTS.csv format and new IRONLOG export format
           name:headers.indexOf('Exercise Name'),
           pattern:headers.indexOf('Movement Pattern'),
           weight:headers.indexOf('Top Weight'),
           reps:headers.indexOf('Best Set # of Reps'),
+          repsTop:headers.indexOf('Total Reps @ Top Weight'),
+          totalReps:headers.indexOf('Total Reps (All Sets)'),
           rpe:headers.indexOf('RPE (best set)'),
           sets:headers.indexOf('Total Working Sets'),
-          location:headers.indexOf('Location (Home/Hotel)'),
-          setsText:headers.indexOf('Sets'),
+          totalVol:headers.indexOf('Total Volume (lbs)'),
+          location:headers.indexOf('Location (Home/Hotel)') >= 0 ? headers.indexOf('Location (Home/Hotel)') : headers.indexOf('Location'),
+          setsText:headers.indexOf('Sets Detail (with RPE)') >= 0 ? headers.indexOf('Sets Detail (with RPE)') : headers.indexOf('Sets'),
           bw:headers.indexOf('Bodyweight'),
           physioNotes:headers.indexOf('Physiological Notes'),
           sleepDur:headers.indexOf('Sleep Duration'),
           sleepScore:headers.indexOf('Sleep Score'),
+          fatigue:headers.indexOf('Fatigue (pre-session)'),
         };
         const physioMap = {}; // date -> physio entry
         for(let i=1;i<rows.length;i++){
           const r=rows[i];
           if(!r[c.date]||!r[c.name])continue;
-          const weight=parseFloat(r[c.weight])||0,reps=parseFloat(r[c.reps])||1,sets=parseFloat(r[c.sets])||(r[c.setsText]?String(r[c.setsText]).split(',').length:3);
-          const xp=Math.round(weight*sets*reps/100*2+sets*3);
-          lifts.push({date:fmtDate(r[c.date]),exercise:String(r[c.name]).trim(),pattern:r[c.pattern]?String(r[c.pattern]).trim():'',weight,reps,sets,rpe:parseFloat(r[c.rpe])||null,location:r[c.location]?String(r[c.location]).trim():'Home Base Gym',xp,totalVol:weight*sets*reps,setsDetail:r[c.setsText]?String(r[c.setsText]).trim():''});
+          const exercise = String(r[c.name]).trim();
+          const isBWEx = exercise.toLowerCase().includes('pull-up') || exercise.toLowerCase().includes('pullup') || /^dip/i.test(exercise);
+          const weight = parseFloat(r[c.weight])||0;
+          // For BW exercises, reps may be blank in weight/reps cols — try repsTop, then parse setsDetail
+          let reps = parseFloat(r[c.reps]) || 0;
+          if(isBWEx && reps <= 1) {
+            // reps=1 is likely a placeholder — try other sources
+            const fromTop = parseFloat(c.repsTop>=0 ? r[c.repsTop] : 0) || 0;
+            if(fromTop > 1) reps = fromTop;
+          }
+          if(isBWEx && reps <= 1) {
+            // Parse best set reps from setsDetail string
+            const sdRaw = c.setsText >= 0 ? String(r[c.setsText]||'') : '';
+            const repMatches = sdRaw.match(/[xX](\d+)/g);
+            if(repMatches) reps = Math.max(...repMatches.map(m=>parseInt(m.slice(1))));
+          }
+          if(!reps) reps = 1;
+          const setsDetail = normalizeSetsDetail(c.setsText >= 0 ? r[c.setsText] : '', isBWEx);
+          // Sets: use column, else count from setsDetail, else default
+          const setsFromDetail = setsDetail ? setsDetail.split(',').length : 0;
+          const sets = parseFloat(r[c.sets]) || setsFromDetail || 3;
+          const totalVolRaw = c.totalVol >= 0 ? parseFloat(r[c.totalVol])||0 : 0;
+          const totalVol = totalVolRaw || (isBWEx ? 0 : weight*sets*reps);
+          const location = (c.location >= 0 && r[c.location]) ? String(r[c.location]).trim() : 'Home Base Gym';
+          // XP — use BW formula for BW exercises
+          let xp;
+          if(isBWEx){
+            xp = Math.round(reps * 1.5 + sets * 4);
+          } else {
+            xp = Math.round(totalVol/100*2+sets*3);
+          }
+          lifts.push({
+            date:fmtDate(r[c.date]), exercise, pattern:r[c.pattern]?String(r[c.pattern]).trim():'',
+            weight:isBWEx?0:weight, reps, sets, rpe, location, xp, totalVol, setsDetail,
+            totalReps: c.totalReps>=0 ? (parseFloat(r[c.totalReps])||reps) : reps,
+            repsAtTopWeight: c.repsTop>=0 ? (parseFloat(r[c.repsTop])||reps) : reps
+          });
 
           // Parse physio data for this date
           const dateKey = fmtDate(r[c.date]);
@@ -2405,9 +2594,92 @@ function processImportFile(file){
         parsedImport.physio = Object.values(physioMap).filter(e => e.bw || e.sleep || e.sleepScore || e.notes);
       }
       if(isRuns){
-        const c={date:headers.indexOf('Date'),type:headers.indexOf('Run Type (Easy / Tempo / Interval / Long)'),dist:headers.indexOf('Distance (miles)'),time:headers.indexOf('Total Time (minutes)'),hr:headers.indexOf('Avg HR'),rpe:headers.indexOf('RPE')};
+        // Handle both old column names and new IRONLOG export column names
+        const h = headers;
+        const ci = name => { const i=h.indexOf(name); return i>=0?i:null; };
+        const rc = {
+          date:     ci('Date') ?? (isSideBySide ? h.lastIndexOf('Date') : 0),
+          type:     ci('Run Type') ?? ci('Run Type (Easy / Tempo / Interval / Long)'),
+          dist:     ci('Distance (mi)') ?? ci('Distance (miles)'),
+          workDist: ci('Working Distance (mi)') ?? ci('Working Distance (miles)'),
+          time:     ci('Time (min)') ?? ci('Total Time (minutes)'),
+          pace:     ci('Avg Pace'),
+          intSpeed: ci('Work Speed (mph)'),
+          intRestSpeed: ci('Rest Speed (mph)'),
+          intCount: ci('# Intervals'),
+          intDur:   ci('Int Duration (s)'),
+          intRest:  ci('Rest Duration (s)'),
+          incline:  ci('Incline (%)'),
+          warmup:   ci('Warmup+Cooldown (mi)'),
+          hr:       ci('Avg HR'),
+          hrZone:   ci('HR Zone'),
+          rpe:      ci('RPE'),
+          z1:       ci('Z1 (min)') ?? ci('Z1'),
+          z2:       ci('Z2 (min)') ?? ci('Z2'),
+          z3:       ci('Z3 (min)') ?? ci('Z3'),
+          z4:       ci('Z4 (min)') ?? ci('Z4'),
+          z5:       ci('Z5 (min)') ?? ci('Z5'),
+          xp:       ci('XP'),
+        };
+        // For side-by-side format, run Date is the second occurrence
+        if(isSideBySide) {
+          const dateOccurrences = h.reduce((acc,v,i)=>v==='Date'?[...acc,i]:acc,[]);
+          if(dateOccurrences.length>1) rc.date = dateOccurrences[1];
+        }
         const mM={'Easy':1,'Tempo':1.5,'Interval':1.8,'Long':1.4,'Easy/Incline Walk':0.8,'Easy/Interval':1.3,'Easy/Tempo':1.2};
-        for(let i=1;i<rows.length;i++){const r=rows[i];const dist=parseFloat(r[c.dist])||0;if(!r[c.date]||dist<=0)continue;const type=r[c.type]?String(r[c.type]).trim():'Easy';const mult=Object.entries(mM).reduce((m,[k,v])=>type.includes(k)?Math.max(m,v):m,1);runs.push({date:fmtDate(r[c.date]),type,dist:Math.round(dist*100)/100,time:parseFloat(r[c.time])||null,hr:parseFloat(r[c.hr])||null,rpe:parseFloat(r[c.rpe])||null,xp:Math.round(dist*1.60934*10*mult)});}
+        // Helper: parse "H:MM" or "MM:SS" pace string → decimal min/mi
+        function parsePaceStr(s) {
+          if(!s) return null;
+          const m = String(s).match(/^(\d+):(\d{2})$/);
+          if(!m) return null;
+          const val = parseInt(m[1]) + parseInt(m[2])/60;
+          return (val > 3 && val < 25) ? val : null; // sanity: 3–25 min/mi
+        }
+        for(let i=1;i<rows.length;i++){
+          const r=rows[i];
+          const rdate = rc.date!=null ? r[rc.date] : '';
+          const rtype = rc.type!=null ? r[rc.type] : '';
+          if(!rdate||!rtype||rtype.startsWith('=')) continue;
+          const dist = parseFloat(rc.dist!=null?r[rc.dist]:0)||0;
+          if(dist<=0) continue;
+          const type = String(rtype).trim();
+          // Time: use stored value if sane (>2min), else reconstruct from pace×dist
+          let time = rc.time!=null ? parseFloat(r[rc.time])||null : null;
+          if(!time || time <= 2) {
+            const paceDecimal = parsePaceStr(rc.pace!=null ? r[rc.pace] : null);
+            if(paceDecimal) time = Math.round(paceDecimal * dist * 10) / 10;
+          }
+          const workingDist = rc.workDist!=null ? parseFloat(r[rc.workDist])||null : null;
+          const warmup = rc.warmup!=null ? parseFloat(r[rc.warmup])||null : null;
+          const incline = rc.incline!=null ? parseFloat(r[rc.incline])||null : null;
+          const hr = rc.hr!=null ? parseFloat(r[rc.hr])||null : null;
+          const rpe = rc.rpe!=null ? parseFloat(r[rc.rpe])||null : null;
+          const intSpeed = rc.intSpeed!=null ? parseFloat(r[rc.intSpeed])||null : null;
+          const intRestSpeed = rc.intRestSpeed!=null ? parseFloat(r[rc.intRestSpeed])||null : null;
+          const intCount = rc.intCount!=null ? parseInt(r[rc.intCount])||null : null;
+          const intDuration = rc.intDur!=null ? parseFloat(r[rc.intDur])||null : null;
+          const intRest = rc.intRest!=null ? parseFloat(r[rc.intRest])||null : null;
+          const z1=rc.z1!=null?parseFloat(r[rc.z1])||null:null;
+          const z2=rc.z2!=null?parseFloat(r[rc.z2])||null:null;
+          const z3=rc.z3!=null?parseFloat(r[rc.z3])||null:null;
+          const z4=rc.z4!=null?parseFloat(r[rc.z4])||null:null;
+          const z5=rc.z5!=null?parseFloat(r[rc.z5])||null:null;
+          const zones = (z1||z2||z3||z4||z5) ? {z1,z2,z3,z4,z5} : null;
+          // XP — use stored if available, otherwise recalculate
+          let xp = rc.xp!=null ? parseInt(r[rc.xp])||0 : 0;
+          if(!xp){
+            const mult=Object.entries(mM).reduce((m,[k,v])=>type.includes(k)?Math.max(m,v):m,1);
+            const distXP=dist*1.60934*15*mult;
+            const timeXP=time?time*mult*1.5:dist*1.60934*5*mult;
+            xp=Math.round(distXP+timeXP);
+          }
+          runs.push({
+            date:fmtDate(rdate), type, dist:Math.round(dist*100)/100,
+            workingDist, warmup, time, hr, rpe, incline,
+            intSpeed, intRestSpeed, intCount, intDuration, intRest,
+            zones, xp
+          });
+        }
       }
       if(!lifts.length&&!runs.length){showToast('No valid rows found');return;}
       parsedImport={lifts,runs};
@@ -2417,7 +2689,8 @@ function processImportFile(file){
       document.getElementById('importDropLabel').innerHTML='<strong style="color:var(--accent)">'+file.name+'</strong><br>Ready to import';
       document.getElementById('importConfirmBtn').disabled=false;document.getElementById('importConfirmBtn').style.opacity='1';
     }catch(err){showToast('Parse error: '+(err.message||'check format').slice(0,40));console.error(err);}
-  };reader.readAsText(file,'UTF-8');
+  };
+  if(isXlsx){ reader.readAsArrayBuffer(file); } else { reader.readAsText(file,'UTF-8'); }
 }
 function fmtDate(raw){if(!raw)return'';const s=String(raw).trim();if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);const d=new Date(s);return isNaN(d)?s:d.toISOString().slice(0,10);}
 function parseCSV(text){const rows=[];let row=[],field='',inQ=false;for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(inQ){if(c==='"'&&n==='"'){field+='"';i++;}else if(c==='"'){inQ=false;}else{field+=c;}}else if(c==='"'){inQ=true;}else if(c===','){row.push(field.trim());field='';}else if(c==='\n'||(c==='\r'&&n==='\n')){row.push(field.trim());field='';if(row.some(f=>f!==''))rows.push(row);row=[];if(c==='\r')i++;}else{field+=c;}}if(field||row.length){row.push(field.trim());if(row.some(f=>f!==''))rows.push(row);}return rows;}
@@ -3910,16 +4183,22 @@ function copyLastWorkout() {
   contextLines.push(`Level ${state.level} · STR ${state.attrs.str} · END ${state.attrs.end} · SPD ${state.attrs.spd} · REC ${state.attrs.rec}`);
 
   // Column headers
-  const liftCols = ['Date','Exercise','Pattern','Top Weight','Reps','Total Reps','Sets Detail (RPE)','Sets','E1RM','Rel Str','Location','Bodyweight','Sleep Dur','Sleep Score','Notes'];
+  const liftCols = ['Date','Exercise','Pattern','Top Weight','Best Set Reps','Reps @ Top Weight','Total Reps','Sets Detail (RPE)','Sets','Volume (lbs)','E1RM','Rel Str','RPE','Location','Bodyweight','Sleep Dur','Sleep Score','Fatigue','Notes'];
   const runCols  = ['Date','Run Type','Distance (mi)','Working Dist (mi)','Time (min)','Avg Pace','Work Speed','Rest Speed','# Intervals','Int Dur (s)','Rest Dur (s)','Incline (%)','W/U+C/D (mi)','Avg HR','HR Zone','RPE','Z1','Z2','Z3','Z4','Z5','XP'];
   const sep = [''];
 
   // Lift rows
   const liftRows = lifts.map(l=>{
     const e1rm = l.weight&&l.reps ? (l.weight*(1+l.reps/30)).toFixed(1) : '';
-    const rel  = e1rm&&latestBW ? (parseFloat(e1rm)/latestBW).toFixed(2)+'xBW' : '';
+    const sessionBW = physio?.bw
+      || [...(state.bodyWeightLog||[])].sort((a,b)=>a.date.localeCompare(b.date)).filter(e=>e.date<=l.date).slice(-1)[0]?.weight
+      || [...(state.bodyWeightLog||[])].sort((a,b)=>a.date.localeCompare(b.date)).slice(-1)[0]?.weight
+      || latestBW;
+    const isBW = l.exercise.toLowerCase().includes('pull-up') || l.exercise.toLowerCase().includes('dip');
+    const rel  = e1rm && sessionBW && !isBW ? (parseFloat(e1rm)/sessionBW).toFixed(2)+'xBW' : '';
+    const repsAtTop = l.repsAtTopWeight || l.reps || '';
     const p    = physio||{};
-    return [l.date,l.exercise,l.pattern,l.weight||'',l.reps||'',l.totalReps||'',l.setsDetail||'',l.sets||'',e1rm,rel,l.location,p.bw||'',p.sleep||'',p.sleepScore||'',p.notes||''];
+    return [l.date,l.exercise,l.pattern,l.weight||'',l.reps||'',repsAtTop,l.totalReps||'',l.setsDetail||'',l.sets||'',l.totalVol||'',e1rm,rel,l.rpe||'',l.location,p.bw||sessionBW||'',p.sleep||'',p.sleepScore||'',p.fatigue||'',p.notes||''];
   });
 
   // Run rows
@@ -4102,6 +4381,10 @@ function checkWeeklyAutoExport() {
 // Migrate existing state without height fields
 if (state.heightFt === undefined) { state.heightFt = 0; state.heightIn = 0; }
 if (state.prestige === undefined) state.prestige = 0;
+// Sanitise × → x in all existing setsDetail (fixes CSV encoding bug)
+if (state.liftLog) state.liftLog.forEach(e => {
+  if (e.setsDetail) e.setsDetail = e.setsDetail.replace(/×/g, 'x');
+});
 if (!state.physioLog) state.physioLog = [];
 if (!state.trackedLifts) state.trackedLifts = JSON.parse(JSON.stringify(DEFAULT_TRACKED_LIFTS));
 if (state.trainingGoals === undefined) { state.trainingGoals = ''; state.trainingPlan = null; state.goalsUpdated = null; }
