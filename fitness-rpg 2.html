@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- IRONLOG v2.1.0 build:20260321-rpefix -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <title>IRONLOG</title>
 <style>
@@ -416,6 +420,7 @@ header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; 
   <div class="header-row1">
     <div class="logo"><span class="logo-iron">IRON</span><span class="logo-log">LOG</span></div>
     <div class="date-str" id="dateDisplay"></div>
+    <div style="font-family:var(--mono);font-size:8px;color:var(--dim);letter-spacing:1px">v2.1</div>
   </div>
   <div class="header-row2">
     <div class="header-name" id="charName" onclick="startEditName()" title="Tap to edit your name">ATHLETE</div>
@@ -2543,6 +2548,7 @@ function processImportFile(file){
           const sets = parseFloat(r[c.sets]) || setsFromDetail || 3;
           const totalVolRaw = c.totalVol >= 0 ? parseFloat(r[c.totalVol])||0 : 0;
           const totalVol = totalVolRaw || (isBWEx ? 0 : weight*sets*reps);
+          const rpe = c.rpe >= 0 ? parseFloat(r[c.rpe])||null : null;
           const location = (c.location >= 0 && r[c.location]) ? String(r[c.location]).trim() : 'Home Base Gym';
           // XP — use BW formula for BW exercises
           let xp;
@@ -2941,7 +2947,16 @@ function renderAll() {
     const bw = (state.bodyWeightLog||[]).slice(-1)[0]?.weight;
     const e1rm = e.weight > 0 ? Math.round(e.weight*(1+(e.reps||1)/30)) : null;
     const relStr = bw && e1rm ? (e1rm/bw).toFixed(2)+'×BW' : null;
+    const isBWEntry = e.weight === 0 || (e.setsDetail && e.setsDetail.startsWith('BW+'));
     const detail = e.setsDetail||(e.weight?e.weight+'lbs×'+e.sets+'×'+e.reps:'BW');
+    // Collapsed preview: for BW show "BW · 15,11,9,7", for weighted show "225x4@9.5…"
+    let previewStr;
+    if(isBWEntry && e.setsDetail) {
+      const repNums = e.setsDetail.split(',').map(s=>{const m=s.match(/x(\d+)/);return m?m[1]:null;}).filter(Boolean);
+      previewStr = repNums.length ? 'BW · '+repNums.join(', ') : detail.split(',')[0];
+    } else {
+      previewStr = detail.split(',')[0]+(detail.includes(',')?'…':'');
+    }
     const rpeStr = e.rpe ? ` @RPE${e.rpe}` : '';
     const locIcon = (e.location||'').includes('Hotel')||((e.location||'').includes('Away')) ? '✈️' : '🏠';
 
@@ -2961,15 +2976,15 @@ function renderAll() {
           <div style="font-size:14px;font-weight:800;color:var(--blue)">${(e.totalVol||0).toLocaleString()}<span style="font-size:9px;font-weight:400;color:var(--dim2)">lbs</span></div>
         </div>
       </div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;font-size:8px">Sets</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;font-size:8px">Sets Detail</div>
       <div style="font-family:var(--mono);font-size:11px;color:var(--text2);line-height:1.8;word-break:break-all">${detail}</div>
       ${e.rpe ? `<div style="margin-top:6px;font-family:var(--mono);font-size:9px">RPE <span style="color:${getRPEColor(e.rpe)};font-weight:700">${e.rpe}</span></div>` : ''}
-      <div style="margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--dim2)">${locIcon} ${e.location||'—'} · ${e.sets||'?'} sets · ${e.totalReps||e.reps||'?'} reps${e.pattern?' · '+e.pattern:''}</div>
+      <div style="margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--dim2)">${locIcon} ${e.location||'—'} · ${e.sets||'?'} sets · ${e.totalReps||e.reps||'?'} total reps${e.repsAtTopWeight&&e.weight?' · '+e.repsAtTopWeight+' reps @ top':''}</div>${e.pattern?`<div style="font-family:var(--mono);font-size:9px;color:var(--dim2);margin-top:2px">${e.pattern}</div>`:''}
     </div>`;
 
     return `<div class="log-entry" style="flex-direction:column;align-items:stretch;cursor:pointer" onclick="toggleLiftExpand(${i})">
       <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
-        <span class="entry-main" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.exercise} — ${detail.split(',')[0]}${detail.includes(',')?'…':''}</span>
+        <span class="entry-main" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.exercise} — ${previewStr}</span>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           <span class="entry-xp">+${e.xp}xp</span>
           <span id="lift-chevron-${i}" style="font-family:var(--mono);font-size:9px;color:var(--dim2);transition:transform 0.2s">▾</span>
